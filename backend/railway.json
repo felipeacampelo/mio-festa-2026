@@ -1,0 +1,8 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "deploy": {
+    "startCommand": "gunicorn config.wsgi:application --bind 0.0.0.0:$PORT",
+    "restartPolicyType": "on_failure",
+    "restartPolicyMaxRetries": 10
+  }
+}
