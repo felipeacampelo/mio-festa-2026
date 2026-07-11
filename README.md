@@ -73,6 +73,7 @@ Use `.env.example` como base para configurar:
 - Resend
 - Postgres (`DATABASE_URL`)
 - CORS / CSRF para a URL pública
+- Asaas usa `ASAAS_ENV=sandbox` ou `ASAAS_ENV=production`; `ASAAS_BASE_URL` é opcional para sobrescrever manualmente.
 
 ## Logs de pagamento
 
@@ -94,5 +95,5 @@ Checklist mínima para o deploy no Railway:
 - preencher `DJANGO_ALLOWED_HOSTS`
 - preencher `FRONTEND_URL` e `BACKEND_URL`
 - preencher `CORS_ALLOWED_ORIGINS` e `CSRF_TRUSTED_ORIGINS`
-- preencher `ASAAS_API_KEY` e `ASAAS_WEBHOOK_TOKEN`
+- preencher `ASAAS_ENV=production`, `ASAAS_API_KEY` e `ASAAS_WEBHOOK_TOKEN`
 - rodar migrations no deploy ou manualmente após o primeiro deploy

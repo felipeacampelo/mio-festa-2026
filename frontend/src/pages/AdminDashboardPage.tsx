@@ -81,7 +81,7 @@ export default function AdminDashboardPage() {
       accent: "var(--brand)",
     },
     {
-      label: "Ingressos",
+      label: "Ingressos emitidos",
       value: stats.totalTickets,
       sub: `${stats.activeTickets} ativos`,
       icon: <IconTickets />,

@@ -52,6 +52,7 @@ class OrderSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "public_id",
+            "order_code",
             "buyer_name",
             "buyer_email",
             "buyer_phone",

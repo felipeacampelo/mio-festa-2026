@@ -39,7 +39,7 @@ def send_order_paid_emails(order) -> None:
 
     order_html = (
         f"<h1>Ingressos confirmados</h1>"
-        f"<p>Pedido {order.public_id}</p>"
+        f"<p>Pedido {order.order_code}</p>"
         f"<p>Comprador: {order.buyer_name}</p>"
         f"<ul>{''.join(ticket_items)}</ul>"
         f"<p>Politica: sem reembolso.</p>"

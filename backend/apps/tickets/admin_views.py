@@ -22,6 +22,7 @@ class AdminOrderListView(generics.ListAPIView):
             filters = (
                 Q(buyer_name__icontains=query)
                 | Q(buyer_email__icontains=query)
+                | Q(order_code__icontains=query)
                 | Q(tickets__participant_name__icontains=query)
                 | Q(tickets__participant_email__icontains=query)
             )
@@ -41,12 +42,17 @@ class AdminTicketListView(generics.ListAPIView):
 
     def get_queryset(self):
         query = self.request.query_params.get("search", "").strip()
-        queryset = Ticket.objects.select_related("order", "checked_in_by", "superseded_by_ticket").prefetch_related("audit_logs")
+        queryset = (
+            Ticket.objects.select_related("order", "checked_in_by", "superseded_by_ticket")
+            .prefetch_related("audit_logs")
+            .filter(status__in=[Ticket.Status.ACTIVE, Ticket.Status.USED])
+        )
         if query:
             filters = (
                 Q(participant_name__icontains=query)
                 | Q(participant_email__icontains=query)
                 | Q(order__buyer_email__icontains=query)
+                | Q(order__order_code__icontains=query)
             )
             try:
                 filters |= Q(ticket_code=uuid.UUID(query))
@@ -60,6 +66,11 @@ class AdminTicketListView(generics.ListAPIView):
 @permission_classes([permissions.IsAdminUser])
 def resend_order_tickets(request, order_id: int):
     order = get_object_or_404(Order.objects.prefetch_related("tickets"), pk=order_id)
+    if order.status != Order.Status.PAID:
+        return response.Response(
+            {"detail": "Ingressos so podem ser reenviados apos pagamento confirmado."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
     send_order_paid_emails(order)
     for ticket in order.tickets.all():
         append_audit(ticket, TicketAuditLog.Action.RESENT, note="Ingressos reenviados manualmente.", actor=request.user)
@@ -70,6 +81,11 @@ def resend_order_tickets(request, order_id: int):
 @permission_classes([permissions.IsAdminUser])
 def edit_ticket(request, ticket_id: int):
     ticket = get_object_or_404(Ticket.objects.select_related("order"), pk=ticket_id)
+    if ticket.order.status != Order.Status.PAID or ticket.status == Ticket.Status.PENDING:
+        return response.Response(
+            {"detail": "Este pedido ainda nao possui ingresso emitido."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
     if ticket.status == Ticket.Status.USED:
         return response.Response({"detail": "Nao e possivel editar ticket ja utilizado."}, status=status.HTTP_400_BAD_REQUEST)
     serializer = AdminTicketUpdateSerializer(data=request.data)
@@ -89,6 +105,11 @@ def edit_ticket(request, ticket_id: int):
 @permission_classes([permissions.IsAdminUser])
 def transfer_ticket(request, ticket_id: int):
     ticket = get_object_or_404(Ticket.objects.select_related("order"), pk=ticket_id)
+    if ticket.order.status != Order.Status.PAID or ticket.status == Ticket.Status.PENDING:
+        return response.Response(
+            {"detail": "Este pedido ainda nao possui ingresso emitido."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
     if ticket.status == Ticket.Status.USED:
         return response.Response({"detail": "Nao e possivel transferir ticket ja utilizado."}, status=status.HTTP_400_BAD_REQUEST)
     serializer = AdminTicketTransferSerializer(data=request.data)

@@ -44,6 +44,7 @@ class CheckoutFlowTests(TestCase):
         order = Order.objects.get()
         self.assertEqual(order.quantity, 2)
         self.assertEqual(order.total_amount, Decimal("50.00"))
+        self.assertRegex(order.order_code, r"^MIO-[A-Z0-9]{6}$")
         self.assertEqual(Ticket.objects.count(), 2)
         self.assertEqual(Payment.objects.count(), 1)
 
@@ -76,6 +77,24 @@ class CheckoutFlowTests(TestCase):
         )
         response = self.client.post("/api/orders/lookup/", {"public_id": str(order.public_id), "buyer_email": "maria@example.com"}, format="json")
         self.assertEqual(response.status_code, 200)
+
+    def test_lookup_accepts_order_code(self):
+        order = Order.objects.create(
+            buyer_name="Maria",
+            buyer_email="maria@example.com",
+            quantity=1,
+            unit_price=Decimal("10.00"),
+            total_amount=Decimal("10.00"),
+            accepted_no_refund=True,
+            payment_method=Order.PaymentMethod.PIX,
+        )
+        response = self.client.post(
+            "/api/orders/lookup/",
+            {"public_id": order.order_code.lower(), "buyer_email": "maria@example.com"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["order_code"], order.order_code)
 
     def test_checkout_does_not_create_order_without_payment(self):
         with patch("apps.orders.serializers.PaymentService.ensure_payment", side_effect=Exception("asaas unavailable")):
@@ -161,3 +180,24 @@ class PaymentAndCheckinTests(TestCase):
         self.assertEqual(self.payment.status, Payment.Status.CONFIRMED)
         self.assertEqual(self.order.status, Order.Status.PAID)
         self.assertEqual(self.ticket.status, Ticket.Status.ACTIVE)
+
+    def test_admin_ticket_list_hides_pending_tickets_until_payment_confirmation(self):
+        self.client.force_authenticate(self.admin)
+
+        pending_response = self.client.get("/api/admin/tickets/")
+        self.assertEqual(pending_response.status_code, 200)
+        self.assertEqual(pending_response.data, [])
+
+        PaymentService().confirm_payment(self.payment, {"manual": True})
+        active_response = self.client.get("/api/admin/tickets/")
+
+        self.assertEqual(active_response.status_code, 200)
+        self.assertEqual(len(active_response.data), 1)
+        self.assertEqual(active_response.data[0]["status"], Ticket.Status.ACTIVE)
+
+    def test_admin_cannot_resend_tickets_before_payment_confirmation(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(f"/api/admin/orders/{self.order.id}/resend-tickets/", format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["detail"], "Ingressos so podem ser reenviados apos pagamento confirmado.")

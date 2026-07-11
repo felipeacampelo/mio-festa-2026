@@ -12,7 +12,7 @@ class TicketAuditInline(admin.TabularInline):
 @admin.register(Ticket)
 class TicketAdmin(admin.ModelAdmin):
     list_display = ("ticket_code", "participant_name", "participant_email", "status", "order", "checked_in_at")
-    search_fields = ("participant_name", "participant_email", "ticket_code", "order__buyer_email", "order__public_id")
+    search_fields = ("participant_name", "participant_email", "ticket_code", "order__buyer_email", "order__public_id", "order__order_code")
     inlines = [TicketAuditInline]
 
 

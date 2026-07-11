@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -114,8 +115,18 @@ REST_FRAMEWORK = {
     ],
 }
 
+ASAAS_ENV = os.getenv("ASAAS_ENV", "sandbox").lower()
+ASAAS_BASE_URLS = {
+    "sandbox": "https://api-sandbox.asaas.com/v3",
+    "production": "https://api.asaas.com/v3",
+}
 ASAAS_API_KEY = os.getenv("ASAAS_API_KEY", "")
-ASAAS_BASE_URL = os.getenv("ASAAS_BASE_URL", "https://api-sandbox.asaas.com/v3")
+ASAAS_BASE_URL = os.getenv("ASAAS_BASE_URL", "")
+if not ASAAS_BASE_URL:
+    try:
+        ASAAS_BASE_URL = ASAAS_BASE_URLS[ASAAS_ENV]
+    except KeyError as exc:
+        raise ImproperlyConfigured("ASAAS_ENV must be 'sandbox' or 'production'.") from exc
 ASAAS_WEBHOOK_TOKEN = os.getenv("ASAAS_WEBHOOK_TOKEN", "")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")

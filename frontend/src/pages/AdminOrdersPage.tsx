@@ -25,7 +25,7 @@ const statusLabel: Record<string, string> = {
 function StatusBadge({ status }: { status: string }) {
   const norm = status?.toLowerCase() || "";
   let cls = "status-badge";
-  if (["paid", "approved", "active"].includes(norm)) cls += " paid";
+  if (["paid", "approved", "active", "confirmed"].includes(norm)) cls += " paid";
   else if (norm === "pending") cls += " pending";
   else if (["failed", "expired"].includes(norm)) cls += " failed";
   else if (norm === "used") cls += " used";
@@ -34,6 +34,25 @@ function StatusBadge({ status }: { status: string }) {
 
 type ModalMode = "edit" | "transfer";
 interface TicketModal { mode: ModalMode; ticket: any }
+
+function formatCurrency(value: string | number) {
+  return Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function shortCode(value?: string) {
+  if (!value) return "-";
+  return value.slice(0, 8);
+}
 
 export default function AdminOrdersPage() {
   const [search, setSearch] = useState("");
@@ -111,6 +130,8 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const hasIssuedTickets = (order: any) => order.status === "paid" || order.payment?.status === "confirmed";
+
   const handleSyncPayment = async (orderId: number) => {
     setSyncing((current) => ({ ...current, [orderId]: true }));
     try {
@@ -147,98 +168,149 @@ export default function AdminOrdersPage() {
           </div>
         </div>
 
-        <div className="admin-grid">
-
-          {/* Pedidos */}
-          <div>
-            <h2>Pedidos</h2>
+        <div className="admin-operations-grid">
+          <section className="admin-list-panel">
+            <div className="admin-list-header">
+              <div>
+                <h2>Pedidos</h2>
+                <p>{orders.length} registro{orders.length === 1 ? "" : "s"}</p>
+              </div>
+            </div>
             {loading && orders.length === 0 && (
               <div className="empty-state">Carregando…</div>
             )}
             {!loading && orders.length === 0 && (
               <div className="empty-state">Nenhum pedido encontrado.</div>
             )}
-            {orders.map((order) => (
-              <article key={order.id} className="card order-card">
-                <div className="order-card-header">
-                  <div>
-                    <p className="order-card-name">{order.buyer_name}</p>
-                    <p className="order-card-email">{order.buyer_email}</p>
-                  </div>
-                  <StatusBadge status={order.status} />
-                </div>
-                <p className="order-card-id">Pedido #{order.public_id}</p>
-                <div className="order-meta-list">
-                  <div className="order-meta-item">
-                    <div className="order-meta-label">Cobrança</div>
-                    <div className="order-meta-value">
-                      <StatusBadge status={order.payment?.status || "pending"} />
-                    </div>
-                  </div>
-                  <div className="order-meta-item">
-                    <div className="order-meta-label">Método</div>
-                    <div className="order-meta-value">{order.payment_method === "pix" ? "PIX" : "Cartão"}</div>
-                  </div>
-                </div>
-                <div className="inline-actions" style={{ marginTop: "var(--sp-3)" }}>
-                  <button
-                    className="button button-secondary"
-                    onClick={() => handleSyncPayment(order.id)}
-                    disabled={syncing[order.id]}
-                  >
-                    {syncing[order.id] ? <><SpinnerIcon /> Sincronizando…</> : "Sincronizar pagamento"}
-                  </button>
-                </div>
-                <button
-                  className="button button-secondary"
-                  onClick={() => handleResend(order.id)}
-                  disabled={resending[order.id]}
-                  style={{ marginTop: "var(--sp-3)" }}
-                >
-                  {resending[order.id] ? <><SpinnerIcon /> Enviando…</> : resent[order.id] ? "✓ Enviado!" : "Reenviar ingressos"}
-                </button>
-              </article>
-            ))}
-          </div>
+            {orders.length > 0 && (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Pedido</th>
+                      <th>Comprador</th>
+                      <th>Qtd.</th>
+                      <th>Total</th>
+                      <th>Pedido</th>
+                      <th>Cobranca</th>
+                      <th>Metodo</th>
+                      <th>Criado</th>
+                      <th>Acoes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orders.map((order) => (
+                      <tr key={order.id}>
+                        <td>
+                          <span className="admin-code" title={order.public_id}>
+                            {order.order_code || shortCode(order.public_id)}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="admin-primary-text">{order.buyer_name}</div>
+                          <div className="admin-secondary-text">{order.buyer_email}</div>
+                        </td>
+                        <td>{order.quantity}</td>
+                        <td>{formatCurrency(order.total_amount)}</td>
+                        <td><StatusBadge status={order.status} /></td>
+                        <td><StatusBadge status={order.payment?.status || "pending"} /></td>
+                        <td>{order.payment_method === "pix" ? "PIX" : "Cartao"}</td>
+                        <td>{formatDate(order.created_at)}</td>
+                        <td>
+                          <div className="admin-row-actions">
+                            <button
+                              className="admin-text-button"
+                              onClick={() => handleSyncPayment(order.id)}
+                              disabled={syncing[order.id]}
+                            >
+                              {syncing[order.id] ? "Sincronizando..." : "Sincronizar"}
+                            </button>
+                            <button
+                              className="admin-text-button"
+                              onClick={() => handleResend(order.id)}
+                              disabled={resending[order.id] || !hasIssuedTickets(order)}
+                            >
+                              {resending[order.id]
+                                ? "Enviando..."
+                                : resent[order.id]
+                                  ? "Enviado"
+                                  : hasIssuedTickets(order)
+                                    ? "Reenviar"
+                                    : "Aguardando"}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
 
-          {/* Ingressos */}
-          <div>
-            <h2>Ingressos</h2>
+          <section className="admin-list-panel">
+            <div className="admin-list-header">
+              <div>
+                <h2>Ingressos emitidos</h2>
+                <p>{tickets.length} registro{tickets.length === 1 ? "" : "s"}</p>
+              </div>
+            </div>
             {loading && tickets.length === 0 && (
               <div className="empty-state">Carregando…</div>
             )}
             {!loading && tickets.length === 0 && (
-              <div className="empty-state">Nenhum ingresso encontrado.</div>
+              <div className="empty-state">Nenhum ingresso emitido encontrado. Pedidos pendentes aparecem apenas na coluna de pedidos.</div>
             )}
-            {tickets.map((ticket) => (
-              <article key={ticket.id} className="card order-card">
-                <div className="order-card-header">
-                  <div>
-                    <p className="order-card-name">{ticket.participant_name}</p>
-                    {ticket.participant_email && (
-                      <p className="order-card-email">{ticket.participant_email}</p>
-                    )}
-                  </div>
-                  <StatusBadge status={ticket.status} />
-                </div>
-                <div className="inline-actions" style={{ marginTop: "var(--sp-3)" }}>
-                  <button
-                    className="button button-secondary"
-                    onClick={() => openModal("edit", ticket)}
-                  >
-                    Editar
-                  </button>
-                  <button
-                    className="button button-secondary"
-                    onClick={() => openModal("transfer", ticket)}
-                  >
-                    Transferir
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-
+            {tickets.length > 0 && (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Ingresso</th>
+                      <th>Participante</th>
+                      <th>Comprador</th>
+                      <th>Status</th>
+                      <th>Check-in</th>
+                      <th>Acoes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tickets.map((ticket) => (
+                      <tr key={ticket.id}>
+                        <td>
+                          <span className="admin-code" title={ticket.ticket_code}>
+                            #{shortCode(ticket.ticket_code)}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="admin-primary-text">{ticket.participant_name}</div>
+                          {ticket.participant_email && (
+                            <div className="admin-secondary-text">{ticket.participant_email}</div>
+                          )}
+                        </td>
+                        <td>
+                          <div className="admin-primary-text">{ticket.order?.buyer_name || "-"}</div>
+                          <div className="admin-secondary-text">{ticket.order?.buyer_email || ""}</div>
+                        </td>
+                        <td><StatusBadge status={ticket.status} /></td>
+                        <td>{ticket.checked_in_at ? formatDate(ticket.checked_in_at) : "-"}</td>
+                        <td>
+                          <div className="admin-row-actions">
+                            <button className="admin-text-button" onClick={() => openModal("edit", ticket)}>
+                              Editar
+                            </button>
+                            <button className="admin-text-button" onClick={() => openModal("transfer", ticket)}>
+                              Transferir
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </div>
       </section>
 

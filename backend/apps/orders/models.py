@@ -1,4 +1,5 @@
 import secrets
+import string
 import uuid
 
 from django.db import models
@@ -6,6 +7,11 @@ from django.db import models
 
 def generate_access_token() -> str:
     return secrets.token_urlsafe(24)
+
+
+def generate_order_code() -> str:
+    alphabet = string.ascii_uppercase + string.digits
+    return "MIO-" + "".join(secrets.choice(alphabet) for _ in range(6))
 
 
 class Order(models.Model):
@@ -20,6 +26,7 @@ class Order(models.Model):
         CREDIT_CARD = "credit_card", "Cartao"
 
     public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    order_code = models.CharField(max_length=10, default=generate_order_code, unique=True, editable=False)
     access_token = models.CharField(max_length=40, default=generate_access_token, editable=False)
     buyer_name = models.CharField(max_length=255)
     buyer_email = models.EmailField()
@@ -38,4 +45,4 @@ class Order(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self) -> str:
-        return f"{self.buyer_name} - {self.public_id}"
+        return f"{self.buyer_name} - {self.order_code}"

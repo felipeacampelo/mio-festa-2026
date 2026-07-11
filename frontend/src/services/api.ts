@@ -36,6 +36,7 @@ export type Payment = {
 export type Order = {
   id: number;
   public_id: string;
+  order_code: string;
   buyer_name: string;
   buyer_email: string;
   buyer_phone: string;
