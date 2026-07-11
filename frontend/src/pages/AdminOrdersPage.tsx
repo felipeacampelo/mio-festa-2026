@@ -54,10 +54,16 @@ function shortCode(value?: string) {
   return value.slice(0, 8);
 }
 
+const PAGE_SIZE = 50;
+
 export default function AdminOrdersPage() {
   const [search, setSearch] = useState("");
   const [orders, setOrders] = useState<any[]>([]);
   const [tickets, setTickets] = useState<any[]>([]);
+  const [ordersCount, setOrdersCount] = useState(0);
+  const [ticketsCount, setTicketsCount] = useState(0);
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [ticketsPage, setTicketsPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState<Record<number, boolean>>({});
   const [resent, setResent] = useState<Record<number, boolean>>({});
@@ -69,15 +75,19 @@ export default function AdminOrdersPage() {
   const [modalLoading, setModalLoading] = useState(false);
   const modalNameRef = useRef<HTMLInputElement>(null);
 
-  const load = async () => {
+  const load = async (nextOrdersPage = ordersPage, nextTicketsPage = ticketsPage) => {
     setLoading(true);
     try {
       const [ordersData, ticketsData] = await Promise.all([
-        getAdminOrders(search),
-        getAdminTickets(search),
+        getAdminOrders(search, nextOrdersPage, PAGE_SIZE),
+        getAdminTickets(search, nextTicketsPage, PAGE_SIZE),
       ]);
-      setOrders(ordersData);
-      setTickets(ticketsData);
+      setOrders(ordersData.results);
+      setTickets(ticketsData.results);
+      setOrdersCount(ordersData.count);
+      setTicketsCount(ticketsData.count);
+      setOrdersPage(ordersData.page);
+      setTicketsPage(ticketsData.page);
     } finally {
       setLoading(false);
     }
@@ -142,6 +152,13 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const handleSearch = () => {
+    load(1, 1);
+  };
+
+  const ordersTotalPages = Math.max(Math.ceil(ordersCount / PAGE_SIZE), 1);
+  const ticketsTotalPages = Math.max(Math.ceil(ticketsCount / PAGE_SIZE), 1);
+
   return (
     <AdminShell>
       <section className="page admin-page">
@@ -158,11 +175,11 @@ export default function AdminOrdersPage() {
                 placeholder="Buscar por nome ou e-mail"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") load(); }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
                 style={{ minWidth: 220 }}
               />
             </div>
-            <button className="button button-secondary" onClick={load} disabled={loading}>
+            <button className="button button-secondary" onClick={handleSearch} disabled={loading}>
               {loading ? <SpinnerIcon /> : "Buscar"}
             </button>
           </div>
@@ -173,7 +190,7 @@ export default function AdminOrdersPage() {
             <div className="admin-list-header">
               <div>
                 <h2>Pedidos</h2>
-                <p>{orders.length} registro{orders.length === 1 ? "" : "s"}</p>
+                <p>{ordersCount} registro{ordersCount === 1 ? "" : "s"}</p>
               </div>
             </div>
             {loading && orders.length === 0 && (
@@ -183,68 +200,79 @@ export default function AdminOrdersPage() {
               <div className="empty-state">Nenhum pedido encontrado.</div>
             )}
             {orders.length > 0 && (
-              <div className="admin-table-wrap">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Pedido</th>
-                      <th>Comprador</th>
-                      <th>Qtd.</th>
-                      <th>Total</th>
-                      <th>Pedido</th>
-                      <th>Cobranca</th>
-                      <th>Metodo</th>
-                      <th>Criado</th>
-                      <th>Acoes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders.map((order) => (
-                      <tr key={order.id}>
-                        <td>
-                          <span className="admin-code" title={order.public_id}>
-                            {order.order_code || shortCode(order.public_id)}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="admin-primary-text">{order.buyer_name}</div>
-                          <div className="admin-secondary-text">{order.buyer_email}</div>
-                        </td>
-                        <td>{order.quantity}</td>
-                        <td>{formatCurrency(order.total_amount)}</td>
-                        <td><StatusBadge status={order.status} /></td>
-                        <td><StatusBadge status={order.payment?.status || "pending"} /></td>
-                        <td>{order.payment_method === "pix" ? "PIX" : "Cartao"}</td>
-                        <td>{formatDate(order.created_at)}</td>
-                        <td>
-                          <div className="admin-row-actions">
-                            <button
-                              className="admin-text-button"
-                              onClick={() => handleSyncPayment(order.id)}
-                              disabled={syncing[order.id]}
-                            >
-                              {syncing[order.id] ? "Sincronizando..." : "Sincronizar"}
-                            </button>
-                            <button
-                              className="admin-text-button"
-                              onClick={() => handleResend(order.id)}
-                              disabled={resending[order.id] || !hasIssuedTickets(order)}
-                            >
-                              {resending[order.id]
-                                ? "Enviando..."
-                                : resent[order.id]
-                                  ? "Enviado"
-                                  : hasIssuedTickets(order)
-                                    ? "Reenviar"
-                                    : "Aguardando"}
-                            </button>
-                          </div>
-                        </td>
+              <>
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Pedido</th>
+                        <th>Comprador</th>
+                        <th>Qtd.</th>
+                        <th>Total</th>
+                        <th>Pedido</th>
+                        <th>Cobranca</th>
+                        <th>Metodo</th>
+                        <th>Criado</th>
+                        <th>Acoes</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {orders.map((order) => (
+                        <tr key={order.id}>
+                          <td>
+                            <span className="admin-code" title={order.public_id}>
+                              {order.order_code || shortCode(order.public_id)}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="admin-primary-text">{order.buyer_name}</div>
+                            <div className="admin-secondary-text">{order.buyer_email}</div>
+                          </td>
+                          <td>{order.quantity}</td>
+                          <td>{formatCurrency(order.total_amount)}</td>
+                          <td><StatusBadge status={order.status} /></td>
+                          <td><StatusBadge status={order.payment?.status || "pending"} /></td>
+                          <td>{order.payment_method === "pix" ? "PIX" : "Cartão"}</td>
+                          <td>{formatDate(order.created_at)}</td>
+                          <td>
+                            <div className="admin-row-actions">
+                              <button
+                                className="admin-text-button"
+                                onClick={() => handleSyncPayment(order.id)}
+                                disabled={syncing[order.id]}
+                              >
+                                {syncing[order.id] ? "Sincronizando..." : "Sincronizar"}
+                              </button>
+                              <button
+                                className="admin-text-button"
+                                onClick={() => handleResend(order.id)}
+                                disabled={resending[order.id] || !hasIssuedTickets(order)}
+                              >
+                                {resending[order.id]
+                                  ? "Enviando..."
+                                  : resent[order.id]
+                                    ? "Enviado"
+                                    : hasIssuedTickets(order)
+                                      ? "Reenviar"
+                                      : "Aguardando"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="admin-pagination">
+                  <button className="admin-text-button" disabled={ordersPage <= 1 || loading} onClick={() => load(ordersPage - 1, ticketsPage)}>
+                    Anterior
+                  </button>
+                  <span>Página {ordersPage} de {ordersTotalPages}</span>
+                  <button className="admin-text-button" disabled={ordersPage >= ordersTotalPages || loading} onClick={() => load(ordersPage + 1, ticketsPage)}>
+                    Próxima
+                  </button>
+                </div>
+              </>
             )}
           </section>
 
@@ -252,7 +280,7 @@ export default function AdminOrdersPage() {
             <div className="admin-list-header">
               <div>
                 <h2>Ingressos emitidos</h2>
-                <p>{tickets.length} registro{tickets.length === 1 ? "" : "s"}</p>
+                <p>{ticketsCount} registro{ticketsCount === 1 ? "" : "s"}</p>
               </div>
             </div>
             {loading && tickets.length === 0 && (
@@ -262,53 +290,64 @@ export default function AdminOrdersPage() {
               <div className="empty-state">Nenhum ingresso emitido encontrado. Pedidos pendentes aparecem apenas na coluna de pedidos.</div>
             )}
             {tickets.length > 0 && (
-              <div className="admin-table-wrap">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Ingresso</th>
-                      <th>Participante</th>
-                      <th>Comprador</th>
-                      <th>Status</th>
-                      <th>Check-in</th>
-                      <th>Acoes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tickets.map((ticket) => (
-                      <tr key={ticket.id}>
-                        <td>
-                          <span className="admin-code" title={ticket.ticket_code}>
-                            #{shortCode(ticket.ticket_code)}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="admin-primary-text">{ticket.participant_name}</div>
-                          {ticket.participant_email && (
-                            <div className="admin-secondary-text">{ticket.participant_email}</div>
-                          )}
-                        </td>
-                        <td>
-                          <div className="admin-primary-text">{ticket.order?.buyer_name || "-"}</div>
-                          <div className="admin-secondary-text">{ticket.order?.buyer_email || ""}</div>
-                        </td>
-                        <td><StatusBadge status={ticket.status} /></td>
-                        <td>{ticket.checked_in_at ? formatDate(ticket.checked_in_at) : "-"}</td>
-                        <td>
-                          <div className="admin-row-actions">
-                            <button className="admin-text-button" onClick={() => openModal("edit", ticket)}>
-                              Editar
-                            </button>
-                            <button className="admin-text-button" onClick={() => openModal("transfer", ticket)}>
-                              Transferir
-                            </button>
-                          </div>
-                        </td>
+              <>
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Ingresso</th>
+                        <th>Participante</th>
+                        <th>Comprador</th>
+                        <th>Status</th>
+                        <th>Check-in</th>
+                        <th>Acoes</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {tickets.map((ticket) => (
+                        <tr key={ticket.id}>
+                          <td>
+                            <span className="admin-code" title={ticket.ticket_code}>
+                              #{shortCode(ticket.ticket_code)}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="admin-primary-text">{ticket.participant_name}</div>
+                            {ticket.participant_email && (
+                              <div className="admin-secondary-text">{ticket.participant_email}</div>
+                            )}
+                          </td>
+                          <td>
+                            <div className="admin-primary-text">{ticket.order?.buyer_name || "-"}</div>
+                            <div className="admin-secondary-text">{ticket.order?.buyer_email || ""}</div>
+                          </td>
+                          <td><StatusBadge status={ticket.status} /></td>
+                          <td>{ticket.checked_in_at ? formatDate(ticket.checked_in_at) : "-"}</td>
+                          <td>
+                            <div className="admin-row-actions">
+                              <button className="admin-text-button" onClick={() => openModal("edit", ticket)}>
+                                Editar
+                              </button>
+                              <button className="admin-text-button" onClick={() => openModal("transfer", ticket)}>
+                                Transferir
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="admin-pagination">
+                  <button className="admin-text-button" disabled={ticketsPage <= 1 || loading} onClick={() => load(ordersPage, ticketsPage - 1)}>
+                    Anterior
+                  </button>
+                  <span>Página {ticketsPage} de {ticketsTotalPages}</span>
+                  <button className="admin-text-button" disabled={ticketsPage >= ticketsTotalPages || loading} onClick={() => load(ordersPage, ticketsPage + 1)}>
+                    Próxima
+                  </button>
+                </div>
+              </>
             )}
           </section>
         </div>

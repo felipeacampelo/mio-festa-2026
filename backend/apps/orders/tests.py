@@ -274,14 +274,14 @@ class PaymentAndCheckinTests(TestCase):
 
         pending_response = self.client.get("/api/admin/tickets/")
         self.assertEqual(pending_response.status_code, 200)
-        self.assertEqual(pending_response.data, [])
+        self.assertEqual(pending_response.data["results"], [])
 
         PaymentService().confirm_payment(self.payment, {"manual": True})
         active_response = self.client.get("/api/admin/tickets/")
 
         self.assertEqual(active_response.status_code, 200)
-        self.assertEqual(len(active_response.data), 1)
-        self.assertEqual(active_response.data[0]["status"], Ticket.Status.ACTIVE)
+        self.assertEqual(len(active_response.data["results"]), 1)
+        self.assertEqual(active_response.data["results"][0]["status"], Ticket.Status.ACTIVE)
 
     def test_admin_cannot_resend_tickets_before_payment_confirmation(self):
         self.client.force_authenticate(self.admin)

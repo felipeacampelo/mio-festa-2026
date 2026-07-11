@@ -53,6 +53,13 @@ export type Order = {
   payment?: Payment;
 };
 
+export type PaginatedResponse<T> = {
+  count: number;
+  page: number;
+  page_size: number;
+  results: T[];
+};
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000/api",
 });
@@ -112,13 +119,17 @@ export async function adminMe() {
   return response.data;
 }
 
-export async function getAdminOrders(search = "") {
-  const response = await api.get<Order[]>("/admin/orders/", { params: { search } });
+export async function getAdminOrders(search = "", page = 1, pageSize = 50) {
+  const response = await api.get<PaginatedResponse<Order>>("/admin/orders/", {
+    params: { search, page, page_size: pageSize },
+  });
   return response.data;
 }
 
-export async function getAdminTickets(search = "") {
-  const response = await api.get<any[]>("/admin/tickets/", { params: { search } });
+export async function getAdminTickets(search = "", page = 1, pageSize = 50) {
+  const response = await api.get<PaginatedResponse<any>>("/admin/tickets/", {
+    params: { search, page, page_size: pageSize },
+  });
   return response.data;
 }
 

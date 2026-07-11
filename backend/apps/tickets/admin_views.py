@@ -12,6 +12,30 @@ from apps.tickets.serializers import AdminTicketSerializer, AdminTicketTransferS
 from apps.tickets.services import append_audit, reissue_ticket
 
 
+def paginate_queryset(request, queryset, serializer_class):
+    try:
+        page = max(int(request.query_params.get("page", "1")), 1)
+    except ValueError:
+        page = 1
+    try:
+        page_size = int(request.query_params.get("page_size", "50"))
+    except ValueError:
+        page_size = 50
+    page_size = min(max(page_size, 1), 100)
+    total = queryset.count()
+    start = (page - 1) * page_size
+    end = start + page_size
+    serializer = serializer_class(queryset[start:end], many=True)
+    return response.Response(
+        {
+            "count": total,
+            "page": page,
+            "page_size": page_size,
+            "results": serializer.data,
+        }
+    )
+
+
 class AdminOrderListView(generics.ListAPIView):
     permission_classes = [permissions.IsAdminUser]
 
@@ -33,7 +57,7 @@ class AdminOrderListView(generics.ListAPIView):
             orders = orders.filter(filters).distinct()
         from apps.orders.serializers import OrderSerializer
 
-        return response.Response(OrderSerializer(orders, many=True).data)
+        return paginate_queryset(request, orders, OrderSerializer)
 
 
 class AdminTicketListView(generics.ListAPIView):
@@ -60,6 +84,9 @@ class AdminTicketListView(generics.ListAPIView):
                 pass
             queryset = queryset.filter(filters)
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        return paginate_queryset(request, self.get_queryset(), self.serializer_class)
 
 
 @api_view(["POST"])

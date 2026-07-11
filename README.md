@@ -81,8 +81,18 @@ Use `.env.example` como base para configurar:
 
 - Apenas pagamento confirmado consome vaga.
 - Pedidos pendentes ficam registrados para auditoria, mas não reservam capacidade.
+- Se duas pessoas iniciarem pagamento para a última vaga, a vaga fica com quem tiver o pagamento confirmado primeiro.
 - Ingressos só são emitidos após confirmação de pagamento.
 - Webhooks repetidos não reenviam ingressos se o pagamento já estiver confirmado.
+- O admin lista pedidos e ingressos com paginação de 50 registros por página.
+
+## Procedimento se webhook falhar
+
+1. Abrir o pedido no admin pela busca usando nome, e-mail ou código do pedido.
+2. Clicar em `Sincronizar` para consultar o status atual diretamente no Asaas.
+3. Se o Asaas retornar pagamento confirmado, o sistema marca o pedido como pago e ativa os ingressos.
+4. Após a ativação, usar `Reenviar` se o comprador ou participante não recebeu o e-mail.
+5. Conferir os logs do Railway filtrando por `apps.payments` para investigar falhas de webhook ou requisições rejeitadas.
 
 ## Logs de pagamento
 

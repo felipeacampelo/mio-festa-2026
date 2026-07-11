@@ -47,8 +47,8 @@ export default function AdminDashboardPage() {
     Promise.all([getAdminEvent(), getAdminOrders(), getAdminTickets()]).then(
       ([eventData, ordersData, ticketsData]) => {
         setEvent(eventData);
-        setOrders(ordersData);
-        setTickets(ticketsData);
+        setOrders(ordersData.results);
+        setTickets(ticketsData.results);
       }
     );
   }, []);

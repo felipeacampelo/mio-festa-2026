@@ -2348,6 +2348,22 @@ textarea:focus {
   cursor: not-allowed;
 }
 
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--border);
+  background: rgba(45, 40, 86, 0.025);
+}
+
+.admin-pagination span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 /* ──────────────────────────────────────────────────────
    RESPONSIVE
 ────────────────────────────────────────────────────── */
