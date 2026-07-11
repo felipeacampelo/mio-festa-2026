@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import AdminShell from "../components/AdminShell";
 import { editTicket, getAdminOrders, getAdminTickets, resendTickets, syncOrderPayment, transferTicket } from "../services/api";
 
@@ -52,6 +52,59 @@ function formatDate(value?: string | null) {
 function shortCode(value?: string) {
   if (!value) return "-";
   return value.slice(0, 8);
+}
+
+function AdminListPanel({
+  title,
+  count,
+  loading,
+  isEmpty,
+  emptyMessage,
+  page,
+  totalPages,
+  onPrev,
+  onNext,
+  children,
+}: {
+  title: string;
+  count: number;
+  loading: boolean;
+  isEmpty: boolean;
+  emptyMessage: string;
+  page: number;
+  totalPages: number;
+  onPrev: () => void;
+  onNext: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <section className="admin-list-panel">
+      <div className="admin-list-header">
+        <div>
+          <h2>{title}</h2>
+          <p>{count} registro{count === 1 ? "" : "s"}</p>
+        </div>
+      </div>
+      {loading && isEmpty && <div className="empty-state">Carregando…</div>}
+      {!loading && isEmpty && <div className="empty-state">{emptyMessage}</div>}
+      {!isEmpty && (
+        <>
+          <div className="admin-table-wrap">
+            <table className="admin-table">{children}</table>
+          </div>
+          <div className="admin-pagination">
+            <button className="admin-text-button" disabled={page <= 1 || loading} onClick={onPrev}>
+              Anterior
+            </button>
+            <span>Página {page} de {totalPages}</span>
+            <button className="admin-text-button" disabled={page >= totalPages || loading} onClick={onNext}>
+              Próxima
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  );
 }
 
 const PAGE_SIZE = 50;
@@ -186,170 +239,132 @@ export default function AdminOrdersPage() {
         </div>
 
         <div className="admin-operations-grid">
-          <section className="admin-list-panel">
-            <div className="admin-list-header">
-              <div>
-                <h2>Pedidos</h2>
-                <p>{ordersCount} registro{ordersCount === 1 ? "" : "s"}</p>
-              </div>
-            </div>
-            {loading && orders.length === 0 && (
-              <div className="empty-state">Carregando…</div>
-            )}
-            {!loading && orders.length === 0 && (
-              <div className="empty-state">Nenhum pedido encontrado.</div>
-            )}
-            {orders.length > 0 && (
-              <>
-                <div className="admin-table-wrap">
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>Pedido</th>
-                        <th>Comprador</th>
-                        <th>Qtd.</th>
-                        <th>Total</th>
-                        <th>Pedido</th>
-                        <th>Cobranca</th>
-                        <th>Metodo</th>
-                        <th>Criado</th>
-                        <th>Acoes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {orders.map((order) => (
-                        <tr key={order.id}>
-                          <td>
-                            <span className="admin-code" title={order.public_id}>
-                              {order.order_code || shortCode(order.public_id)}
-                            </span>
-                          </td>
-                          <td>
-                            <div className="admin-primary-text">{order.buyer_name}</div>
-                            <div className="admin-secondary-text">{order.buyer_email}</div>
-                          </td>
-                          <td>{order.quantity}</td>
-                          <td>{formatCurrency(order.total_amount)}</td>
-                          <td><StatusBadge status={order.status} /></td>
-                          <td><StatusBadge status={order.payment?.status || "pending"} /></td>
-                          <td>{order.payment_method === "pix" ? "PIX" : "Cartão"}</td>
-                          <td>{formatDate(order.created_at)}</td>
-                          <td>
-                            <div className="admin-row-actions">
-                              <button
-                                className="admin-text-button"
-                                onClick={() => handleSyncPayment(order.id)}
-                                disabled={syncing[order.id]}
-                              >
-                                {syncing[order.id] ? "Sincronizando..." : "Sincronizar"}
-                              </button>
-                              <button
-                                className="admin-text-button"
-                                onClick={() => handleResend(order.id)}
-                                disabled={resending[order.id] || !hasIssuedTickets(order)}
-                              >
-                                {resending[order.id]
-                                  ? "Enviando..."
-                                  : resent[order.id]
-                                    ? "Enviado"
-                                    : hasIssuedTickets(order)
-                                      ? "Reenviar"
-                                      : "Aguardando"}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="admin-pagination">
-                  <button className="admin-text-button" disabled={ordersPage <= 1 || loading} onClick={() => load(ordersPage - 1, ticketsPage)}>
-                    Anterior
-                  </button>
-                  <span>Página {ordersPage} de {ordersTotalPages}</span>
-                  <button className="admin-text-button" disabled={ordersPage >= ordersTotalPages || loading} onClick={() => load(ordersPage + 1, ticketsPage)}>
-                    Próxima
-                  </button>
-                </div>
-              </>
-            )}
-          </section>
+          <AdminListPanel
+            title="Pedidos"
+            count={ordersCount}
+            loading={loading}
+            isEmpty={orders.length === 0}
+            emptyMessage="Nenhum pedido encontrado."
+            page={ordersPage}
+            totalPages={ordersTotalPages}
+            onPrev={() => load(ordersPage - 1, ticketsPage)}
+            onNext={() => load(ordersPage + 1, ticketsPage)}
+          >
+            <thead>
+              <tr>
+                <th>Pedido</th>
+                <th>Comprador</th>
+                <th>Qtd.</th>
+                <th>Total</th>
+                <th>Pedido</th>
+                <th>Cobranca</th>
+                <th>Metodo</th>
+                <th>Criado</th>
+                <th>Acoes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((order) => (
+                <tr key={order.id}>
+                  <td>
+                    <span className="admin-code" title={order.public_id}>
+                      {order.order_code || shortCode(order.public_id)}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="admin-primary-text">{order.buyer_name}</div>
+                    <div className="admin-secondary-text">{order.buyer_email}</div>
+                  </td>
+                  <td>{order.quantity}</td>
+                  <td>{formatCurrency(order.total_amount)}</td>
+                  <td><StatusBadge status={order.status} /></td>
+                  <td><StatusBadge status={order.payment?.status || "pending"} /></td>
+                  <td>{order.payment_method === "pix" ? "PIX" : "Cartão"}</td>
+                  <td>{formatDate(order.created_at)}</td>
+                  <td>
+                    <div className="admin-row-actions">
+                      <button
+                        className="admin-text-button"
+                        onClick={() => handleSyncPayment(order.id)}
+                        disabled={syncing[order.id]}
+                      >
+                        {syncing[order.id] ? "Sincronizando..." : "Sincronizar"}
+                      </button>
+                      <button
+                        className="admin-text-button"
+                        onClick={() => handleResend(order.id)}
+                        disabled={resending[order.id] || !hasIssuedTickets(order)}
+                      >
+                        {resending[order.id]
+                          ? "Enviando..."
+                          : resent[order.id]
+                            ? "Enviado"
+                            : hasIssuedTickets(order)
+                              ? "Reenviar"
+                              : "Aguardando"}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </AdminListPanel>
 
-          <section className="admin-list-panel">
-            <div className="admin-list-header">
-              <div>
-                <h2>Ingressos emitidos</h2>
-                <p>{ticketsCount} registro{ticketsCount === 1 ? "" : "s"}</p>
-              </div>
-            </div>
-            {loading && tickets.length === 0 && (
-              <div className="empty-state">Carregando…</div>
-            )}
-            {!loading && tickets.length === 0 && (
-              <div className="empty-state">Nenhum ingresso emitido encontrado. Pedidos pendentes aparecem apenas na coluna de pedidos.</div>
-            )}
-            {tickets.length > 0 && (
-              <>
-                <div className="admin-table-wrap">
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>Ingresso</th>
-                        <th>Participante</th>
-                        <th>Comprador</th>
-                        <th>Status</th>
-                        <th>Check-in</th>
-                        <th>Acoes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tickets.map((ticket) => (
-                        <tr key={ticket.id}>
-                          <td>
-                            <span className="admin-code" title={ticket.ticket_code}>
-                              #{shortCode(ticket.ticket_code)}
-                            </span>
-                          </td>
-                          <td>
-                            <div className="admin-primary-text">{ticket.participant_name}</div>
-                            {ticket.participant_email && (
-                              <div className="admin-secondary-text">{ticket.participant_email}</div>
-                            )}
-                          </td>
-                          <td>
-                            <div className="admin-primary-text">{ticket.order?.buyer_name || "-"}</div>
-                            <div className="admin-secondary-text">{ticket.order?.buyer_email || ""}</div>
-                          </td>
-                          <td><StatusBadge status={ticket.status} /></td>
-                          <td>{ticket.checked_in_at ? formatDate(ticket.checked_in_at) : "-"}</td>
-                          <td>
-                            <div className="admin-row-actions">
-                              <button className="admin-text-button" onClick={() => openModal("edit", ticket)}>
-                                Editar
-                              </button>
-                              <button className="admin-text-button" onClick={() => openModal("transfer", ticket)}>
-                                Transferir
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="admin-pagination">
-                  <button className="admin-text-button" disabled={ticketsPage <= 1 || loading} onClick={() => load(ordersPage, ticketsPage - 1)}>
-                    Anterior
-                  </button>
-                  <span>Página {ticketsPage} de {ticketsTotalPages}</span>
-                  <button className="admin-text-button" disabled={ticketsPage >= ticketsTotalPages || loading} onClick={() => load(ordersPage, ticketsPage + 1)}>
-                    Próxima
-                  </button>
-                </div>
-              </>
-            )}
-          </section>
+          <AdminListPanel
+            title="Ingressos emitidos"
+            count={ticketsCount}
+            loading={loading}
+            isEmpty={tickets.length === 0}
+            emptyMessage="Nenhum ingresso emitido encontrado. Pedidos pendentes aparecem apenas na coluna de pedidos."
+            page={ticketsPage}
+            totalPages={ticketsTotalPages}
+            onPrev={() => load(ordersPage, ticketsPage - 1)}
+            onNext={() => load(ordersPage, ticketsPage + 1)}
+          >
+            <thead>
+              <tr>
+                <th>Ingresso</th>
+                <th>Participante</th>
+                <th>Comprador</th>
+                <th>Status</th>
+                <th>Check-in</th>
+                <th>Acoes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tickets.map((ticket) => (
+                <tr key={ticket.id}>
+                  <td>
+                    <span className="admin-code" title={ticket.ticket_code}>
+                      #{shortCode(ticket.ticket_code)}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="admin-primary-text">{ticket.participant_name}</div>
+                    {ticket.participant_email && (
+                      <div className="admin-secondary-text">{ticket.participant_email}</div>
+                    )}
+                  </td>
+                  <td>
+                    <div className="admin-primary-text">{ticket.order?.buyer_name || "-"}</div>
+                    <div className="admin-secondary-text">{ticket.order?.buyer_email || ""}</div>
+                  </td>
+                  <td><StatusBadge status={ticket.status} /></td>
+                  <td>{ticket.checked_in_at ? formatDate(ticket.checked_in_at) : "-"}</td>
+                  <td>
+                    <div className="admin-row-actions">
+                      <button className="admin-text-button" onClick={() => openModal("edit", ticket)}>
+                        Editar
+                      </button>
+                      <button className="admin-text-button" onClick={() => openModal("transfer", ticket)}>
+                        Transferir
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </AdminListPanel>
         </div>
       </section>
 

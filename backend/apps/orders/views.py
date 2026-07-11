@@ -1,6 +1,3 @@
-import uuid
-
-from django.db.models import Q
 from rest_framework import generics, permissions, response, status
 
 from .models import Order
@@ -32,14 +29,9 @@ class OrderLookupView(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         lookup_code = request.data.get("public_id", "").strip()
         buyer_email = request.data.get("buyer_email", "").strip().lower()
-        filters = Q(order_code__iexact=lookup_code)
-        try:
-            filters |= Q(public_id=uuid.UUID(lookup_code))
-        except ValueError:
-            pass
         order = generics.get_object_or_404(
             Order,
-            filters,
+            Order.lookup_filter(lookup_code),
             buyer_email__iexact=buyer_email,
         )
         data = OrderSerializer(order).data

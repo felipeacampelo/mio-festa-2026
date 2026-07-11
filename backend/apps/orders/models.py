@@ -46,3 +46,12 @@ class Order(models.Model):
 
     def __str__(self) -> str:
         return f"{self.buyer_name} - {self.order_code}"
+
+    @classmethod
+    def lookup_filter(cls, code: str) -> models.Q:
+        filters = models.Q(order_code__iexact=code)
+        try:
+            filters |= models.Q(public_id=uuid.UUID(code))
+        except ValueError:
+            pass
+        return filters

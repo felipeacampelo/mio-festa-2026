@@ -227,7 +227,6 @@ class PaymentService:
 
     @transaction.atomic
     def confirm_payment(self, payment: Payment, payload: Optional[dict] = None) -> Payment:
-        was_already_confirmed = payment.status == Payment.Status.CONFIRMED and payment.order.status == Order.Status.PAID
         if payment.status == Payment.Status.CONFIRMED and payment.order.status == Order.Status.PAID:
             logger.info(
                 "Payment confirmation ignored because it is already confirmed payment_id=%s order_id=%s external_id=%s",
@@ -261,8 +260,7 @@ class PaymentService:
             payment.id,
             order.tickets.count(),
         )
-        if not was_already_confirmed:
-            send_order_paid_emails(order)
+        send_order_paid_emails(order)
         return payment
 
     @transaction.atomic

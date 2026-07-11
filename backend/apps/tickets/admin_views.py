@@ -12,6 +12,15 @@ from apps.tickets.serializers import AdminTicketSerializer, AdminTicketTransferS
 from apps.tickets.services import append_audit, reissue_ticket
 
 
+def _ticket_not_editable_response(ticket):
+    if ticket.order.status != Order.Status.PAID or ticket.status == Ticket.Status.PENDING:
+        return response.Response(
+            {"detail": "Este pedido ainda nao possui ingresso emitido."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return None
+
+
 def paginate_queryset(request, queryset, serializer_class):
     try:
         page = max(int(request.query_params.get("page", "1")), 1)
@@ -108,11 +117,9 @@ def resend_order_tickets(request, order_id: int):
 @permission_classes([permissions.IsAdminUser])
 def edit_ticket(request, ticket_id: int):
     ticket = get_object_or_404(Ticket.objects.select_related("order"), pk=ticket_id)
-    if ticket.order.status != Order.Status.PAID or ticket.status == Ticket.Status.PENDING:
-        return response.Response(
-            {"detail": "Este pedido ainda nao possui ingresso emitido."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    not_editable = _ticket_not_editable_response(ticket)
+    if not_editable is not None:
+        return not_editable
     if ticket.status == Ticket.Status.USED:
         return response.Response({"detail": "Nao e possivel editar ticket ja utilizado."}, status=status.HTTP_400_BAD_REQUEST)
     serializer = AdminTicketUpdateSerializer(data=request.data)
@@ -132,11 +139,9 @@ def edit_ticket(request, ticket_id: int):
 @permission_classes([permissions.IsAdminUser])
 def transfer_ticket(request, ticket_id: int):
     ticket = get_object_or_404(Ticket.objects.select_related("order"), pk=ticket_id)
-    if ticket.order.status != Order.Status.PAID or ticket.status == Ticket.Status.PENDING:
-        return response.Response(
-            {"detail": "Este pedido ainda nao possui ingresso emitido."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    not_editable = _ticket_not_editable_response(ticket)
+    if not_editable is not None:
+        return not_editable
     if ticket.status == Ticket.Status.USED:
         return response.Response({"detail": "Nao e possivel transferir ticket ja utilizado."}, status=status.HTTP_400_BAD_REQUEST)
     serializer = AdminTicketTransferSerializer(data=request.data)
