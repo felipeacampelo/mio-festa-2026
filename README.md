@@ -107,19 +107,31 @@ Os logs da integração com Asaas são emitidos no logger `apps.payments` e incl
 
 ## Railway
 
-Checklist mínima para o deploy no Railway:
+Dois serviços no mesmo projeto: `backend` (Django) e `frontend` (build estático servido por `serve`).
 
-- definir o Root Directory do serviço como `backend`
-- criar banco Postgres no projeto
-- preencher `DATABASE_URL`
-- preencher `DJANGO_ALLOWED_HOSTS`
-- preencher `FRONTEND_URL` e `BACKEND_URL`
-- preencher `CORS_ALLOWED_ORIGINS` e `CSRF_TRUSTED_ORIGINS`
-- setar `CORS_ALLOW_ALL_ORIGINS=false` (o default é `true`, inseguro em produção)
-- preencher `ASAAS_ENV=production`, `ASAAS_API_KEY` e `ASAAS_WEBHOOK_TOKEN`
-- manter `ALLOW_MANUAL_PAYMENT_CONFIRMATION=false`
-- setar `DJANGO_DEBUG=false`
-- gerar e preencher um `DJANGO_SECRET_KEY` novo (não usar o default do `.env.example`)
-- setar `DJANGO_SECURE_SSL_REDIRECT=true`, `DJANGO_SESSION_COOKIE_SECURE=true` e `DJANGO_CSRF_COOKIE_SECURE=true`
-- `migrate` e `collectstatic` já rodam automaticamente no start (`backend/Procfile` / `backend/railway.json`)
-- rodar `python manage.py createsuperuser` manualmente após o primeiro deploy para acessar o admin
+### Backend
+
+- Root Directory: `backend`
+- Build/Start command: não precisa configurar nada no dashboard — `backend/railway.json` já define o start
+  (`migrate` → `bootstrap_admin` → `collectstatic` → `gunicorn`)
+- Criar um banco Postgres no projeto e ligar `DATABASE_URL` a ele
+- Variáveis obrigatórias: `DJANGO_SECRET_KEY` (gerar uma nova), `DJANGO_ALLOWED_HOSTS`,
+  `FRONTEND_URL`, `BACKEND_URL`, `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`,
+  `ASAAS_ENV=production`, `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN`
+- Variáveis que têm default de dev e precisam virar produção: `DJANGO_DEBUG=false`,
+  `CORS_ALLOW_ALL_ORIGINS=false`, `DJANGO_SECURE_SSL_REDIRECT=true`,
+  `DJANGO_SESSION_COOKIE_SECURE=true`, `DJANGO_CSRF_COOKIE_SECURE=true`
+- Acesso ao admin: como o Railway não expõe shell/CLI para rodar `createsuperuser` manualmente,
+  preencha `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL` e `DJANGO_SUPERUSER_PASSWORD` —
+  o `bootstrap_admin` cria o superuser automaticamente no primeiro start (é idempotente, não
+  recria se já existir um superuser)
+- Opcionais: `RESEND_API_KEY`/`DEFAULT_FROM_EMAIL` (sem `RESEND_API_KEY` os e-mails caem no
+  backend de console), `ALLOW_MANUAL_PAYMENT_CONFIRMATION` (manter `false`)
+
+### Frontend
+
+- Root Directory: `frontend`
+- Build command: `npm run build` (já em `frontend/railway.json`)
+- Start command: `npm run start`, que roda `serve -s dist -l $PORT` (já em `frontend/Procfile` / `frontend/railway.json`)
+- Variável obrigatória: `VITE_API_URL` apontando para a URL pública do backend (ex.: `https://seu-backend.up.railway.app/api`) —
+  é lida em build time, então precisa estar setada antes do `npm run build` rodar
