@@ -74,6 +74,15 @@ Use `.env.example` como base para configurar:
 - Postgres (`DATABASE_URL`)
 - CORS / CSRF para a URL pública
 - Asaas usa `ASAAS_ENV=sandbox` ou `ASAAS_ENV=production`; `ASAAS_BASE_URL` é opcional para sobrescrever manualmente.
+- Em produção, `ASAAS_API_KEY` é obrigatório. Sem chave, o checkout falha e nenhum pedido é criado.
+- A confirmação manual de pagamento fica desabilitada por padrão; use `ALLOW_MANUAL_PAYMENT_CONFIRMATION=true` apenas em ambiente controlado.
+
+## Regras operacionais
+
+- Apenas pagamento confirmado consome vaga.
+- Pedidos pendentes ficam registrados para auditoria, mas não reservam capacidade.
+- Ingressos só são emitidos após confirmação de pagamento.
+- Webhooks repetidos não reenviam ingressos se o pagamento já estiver confirmado.
 
 ## Logs de pagamento
 
@@ -96,4 +105,5 @@ Checklist mínima para o deploy no Railway:
 - preencher `FRONTEND_URL` e `BACKEND_URL`
 - preencher `CORS_ALLOWED_ORIGINS` e `CSRF_TRUSTED_ORIGINS`
 - preencher `ASAAS_ENV=production`, `ASAAS_API_KEY` e `ASAAS_WEBHOOK_TOKEN`
+- manter `ALLOW_MANUAL_PAYMENT_CONFIRMATION=false`
 - rodar migrations no deploy ou manualmente após o primeiro deploy

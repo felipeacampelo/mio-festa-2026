@@ -3,7 +3,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -118,6 +118,87 @@ class CheckoutFlowTests(TestCase):
         self.assertEqual(Ticket.objects.count(), 0)
         self.assertEqual(Payment.objects.count(), 0)
 
+    def test_pending_orders_do_not_consume_capacity(self):
+        event = EventSettings.get_solo()
+        event.capacity_total = 1
+        event.save()
+
+        first = self.client.post(
+            "/api/orders/checkout/",
+            {
+                "buyer_name": "Maria",
+                "buyer_email": "maria@example.com",
+                "payment_method": "pix",
+                "accepted_no_refund": True,
+                "participants": [{"participant_name": "Joao"}],
+            },
+            format="json",
+        )
+        second = self.client.post(
+            "/api/orders/checkout/",
+            {
+                "buyer_name": "Ana",
+                "buyer_email": "ana@example.com",
+                "payment_method": "pix",
+                "accepted_no_refund": True,
+                "participants": [{"participant_name": "Ana"}],
+            },
+            format="json",
+        )
+
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(second.status_code, 201)
+        self.assertEqual(Ticket.objects.filter(status=Ticket.Status.PENDING).count(), 2)
+
+    def test_checkout_blocks_when_paid_capacity_is_full(self):
+        event = EventSettings.get_solo()
+        event.capacity_total = 1
+        event.save()
+        paid_order = Order.objects.create(
+            buyer_name="Pago",
+            buyer_email="pago@example.com",
+            quantity=1,
+            unit_price=Decimal("25.00"),
+            total_amount=Decimal("25.00"),
+            accepted_no_refund=True,
+            payment_method=Order.PaymentMethod.PIX,
+            status=Order.Status.PAID,
+            paid_at=timezone.now(),
+        )
+        Ticket.objects.create(order=paid_order, participant_name="Pago", status=Ticket.Status.ACTIVE)
+
+        response = self.client.post(
+            "/api/orders/checkout/",
+            {
+                "buyer_name": "Maria",
+                "buyer_email": "maria@example.com",
+                "payment_method": "pix",
+                "accepted_no_refund": True,
+                "participants": [{"participant_name": "Joao"}],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    @override_settings(ASAAS_ENV="production", ASAAS_API_KEY="")
+    def test_production_checkout_fails_without_asaas_api_key(self):
+        response = self.client.post(
+            "/api/orders/checkout/",
+            {
+                "buyer_name": "Maria",
+                "buyer_email": "maria@example.com",
+                "payment_method": "pix",
+                "accepted_no_refund": True,
+                "participants": [{"participant_name": "Joao"}],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(Order.objects.count(), 0)
+        self.assertEqual(Payment.objects.count(), 0)
+
 
 class PaymentAndCheckinTests(TestCase):
     def setUp(self):
@@ -145,6 +226,13 @@ class PaymentAndCheckinTests(TestCase):
         self.order.refresh_from_db()
         self.assertEqual(self.ticket.status, Ticket.Status.ACTIVE)
         self.assertEqual(self.order.status, Order.Status.PAID)
+
+    def test_confirm_payment_does_not_send_duplicate_emails(self):
+        with patch("apps.payments.services.send_order_paid_emails") as mock_send:
+            PaymentService().confirm_payment(self.payment, {"manual": True})
+            PaymentService().confirm_payment(self.payment, {"manual": True})
+
+        self.assertEqual(mock_send.call_count, 1)
 
     def test_checkin_is_idempotent(self):
         PaymentService().confirm_payment(self.payment, {"manual": True})
@@ -201,3 +289,9 @@ class PaymentAndCheckinTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["detail"], "Ingressos so podem ser reenviados apos pagamento confirmado.")
+
+    def test_admin_force_confirm_is_disabled_by_default(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(f"/api/payments/admin/orders/{self.order.id}/confirm/", format="json")
+
+        self.assertEqual(response.status_code, 403)

@@ -128,6 +128,7 @@ if not ASAAS_BASE_URL:
     except KeyError as exc:
         raise ImproperlyConfigured("ASAAS_ENV must be 'sandbox' or 'production'.") from exc
 ASAAS_WEBHOOK_TOKEN = os.getenv("ASAAS_WEBHOOK_TOKEN", "")
+ALLOW_MANUAL_PAYMENT_CONFIRMATION = os.getenv("ALLOW_MANUAL_PAYMENT_CONFIRMATION", "false").lower() == "true"
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")

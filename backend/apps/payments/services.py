@@ -5,6 +5,7 @@ import logging
 
 import requests
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
 from django.utils import timezone
 
@@ -26,7 +27,13 @@ class AsaasService:
     def configured(self) -> bool:
         return bool(self.api_key)
 
+    def _ensure_configured_for_production(self):
+        if settings.ASAAS_ENV == "production" and not self.configured:
+            logger.error("Asaas is not configured for production payments")
+            raise ImproperlyConfigured("ASAAS_API_KEY is required when ASAAS_ENV=production.")
+
     def _request(self, method: str, path: str, payload=None):
+        self._ensure_configured_for_production()
         url = f"{self.base_url}/{path.lstrip('/')}"
         try:
             response = requests.request(
@@ -59,6 +66,7 @@ class AsaasService:
             raise
 
     def create_pix_payment(self, order: Order) -> dict:
+        self._ensure_configured_for_production()
         if not self.configured:
             external_id = f"pix_{uuid.uuid4().hex[:12]}"
             logger.info(
@@ -106,6 +114,7 @@ class AsaasService:
         }
 
     def create_credit_card_checkout(self, order: Order) -> dict:
+        self._ensure_configured_for_production()
         if not self.configured:
             external_id = f"card_{uuid.uuid4().hex[:12]}"
             logger.info(
@@ -144,6 +153,7 @@ class AsaasService:
         return {"id": payment_resp["id"], "invoiceUrl": payment_resp.get("invoiceUrl", "")}
 
     def get_payment(self, external_id: str) -> dict:
+        self._ensure_configured_for_production()
         if not self.configured:
             logger.info("Using sandbox payment sync fallback external_id=%s", external_id)
             return {"id": external_id, "status": "PENDING"}
@@ -217,6 +227,7 @@ class PaymentService:
 
     @transaction.atomic
     def confirm_payment(self, payment: Payment, payload: Optional[dict] = None) -> Payment:
+        was_already_confirmed = payment.status == Payment.Status.CONFIRMED and payment.order.status == Order.Status.PAID
         if payment.status == Payment.Status.CONFIRMED and payment.order.status == Order.Status.PAID:
             logger.info(
                 "Payment confirmation ignored because it is already confirmed payment_id=%s order_id=%s external_id=%s",
@@ -250,7 +261,8 @@ class PaymentService:
             payment.id,
             order.tickets.count(),
         )
-        send_order_paid_emails(order)
+        if not was_already_confirmed:
+            send_order_paid_emails(order)
         return payment
 
     @transaction.atomic

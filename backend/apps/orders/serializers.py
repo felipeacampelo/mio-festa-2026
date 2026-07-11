@@ -81,6 +81,8 @@ class OrderCreateSerializer(serializers.Serializer):
         event = EventSettings.get_solo()
         if event.sales_status() != "open":
             raise serializers.ValidationError("As vendas estao encerradas no momento.")
+        if not event.has_paid_capacity_for(len(attrs.get("participants", []))):
+            raise serializers.ValidationError("Nao ha vagas suficientes para a quantidade selecionada.")
         if not attrs["accepted_no_refund"]:
             raise serializers.ValidationError("E necessario aceitar a politica de nao reembolso.")
         attrs["event"] = event

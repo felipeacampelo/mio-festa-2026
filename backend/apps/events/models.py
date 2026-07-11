@@ -35,9 +35,17 @@ class EventSettings(models.Model):
     def paid_capacity_reached(self) -> bool:
         if not self.capacity_total:
             return False
+        return self.paid_tickets_count() >= self.capacity_total
+
+    def paid_tickets_count(self) -> int:
         from apps.tickets.models import Ticket
 
-        return Ticket.objects.filter(status__in=[Ticket.Status.ACTIVE, Ticket.Status.USED]).count() >= self.capacity_total
+        return Ticket.objects.filter(status__in=[Ticket.Status.ACTIVE, Ticket.Status.USED]).count()
+
+    def has_paid_capacity_for(self, quantity: int) -> bool:
+        if not self.capacity_total:
+            return True
+        return self.paid_tickets_count() + quantity <= self.capacity_total
 
     def sales_status(self) -> str:
         if self.is_sales_paused:

@@ -60,6 +60,16 @@ def asaas_webhook(request):
 @api_view(["POST"])
 @permission_classes([permissions.IsAdminUser])
 def admin_force_confirm(request, order_id: int):
+    if not settings.ALLOW_MANUAL_PAYMENT_CONFIRMATION:
+        logger.warning(
+            "Admin force confirmation rejected because ALLOW_MANUAL_PAYMENT_CONFIRMATION is disabled actor=%s order_id=%s",
+            request.user.username,
+            order_id,
+        )
+        return response.Response(
+            {"detail": "Confirmacao manual de pagamento esta desabilitada."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
     order = Order.objects.get(pk=order_id)
     payment = order.payment
     logger.warning(
