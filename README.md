@@ -107,8 +107,6 @@ Os logs da integração com Asaas são emitidos no logger `apps.payments` e incl
 
 ## Railway
 
-Dois serviços no mesmo projeto: `backend` (Django) e `frontend` (build estático servido por `serve`).
-
 ### Backend
 
 - Root Directory: `backend`
@@ -128,10 +126,16 @@ Dois serviços no mesmo projeto: `backend` (Django) e `frontend` (build estátic
 - Opcionais: `RESEND_API_KEY`/`DEFAULT_FROM_EMAIL` (sem `RESEND_API_KEY` os e-mails caem no
   backend de console), `ALLOW_MANUAL_PAYMENT_CONFIRMATION` (manter `false`)
 
-### Frontend
+## Vercel
 
-- Root Directory: `frontend`
-- Build command: `npm run build` (já em `frontend/railway.json`)
-- Start command: `npm run start`, que roda `serve -s dist -l $PORT` (já em `frontend/Procfile` / `frontend/railway.json`)
-- Variável obrigatória: `VITE_API_URL` apontando para a URL pública do backend (ex.: `https://seu-backend.up.railway.app/api`) —
-  é lida em build time, então precisa estar setada antes do `npm run build` rodar
+Frontend é deployado na Vercel (não no Railway).
+
+- Root Directory do projeto na Vercel: `frontend`
+- Framework preset: Vite (detectado automaticamente; build `npm run build`, output `dist`)
+- `frontend/vercel.json` já tem o rewrite de SPA (todas as rotas caem em `index.html`,
+  necessário porque o app usa `BrowserRouter`)
+- Variável obrigatória: `VITE_API_URL` apontando para a URL pública do backend no Railway
+  (ex.: `https://seu-backend.up.railway.app/api`) — é lida em build time, então precisa
+  estar setada no projeto da Vercel antes do build rodar
+- Depois de saber o domínio final da Vercel, atualizar no backend (Railway):
+  `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS` e `CSRF_TRUSTED_ORIGINS` com essa URL
