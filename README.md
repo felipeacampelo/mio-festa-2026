@@ -109,11 +109,17 @@ Os logs da integração com Asaas são emitidos no logger `apps.payments` e incl
 
 Checklist mínima para o deploy no Railway:
 
+- definir o Root Directory do serviço como `backend`
 - criar banco Postgres no projeto
 - preencher `DATABASE_URL`
 - preencher `DJANGO_ALLOWED_HOSTS`
 - preencher `FRONTEND_URL` e `BACKEND_URL`
 - preencher `CORS_ALLOWED_ORIGINS` e `CSRF_TRUSTED_ORIGINS`
+- setar `CORS_ALLOW_ALL_ORIGINS=false` (o default é `true`, inseguro em produção)
 - preencher `ASAAS_ENV=production`, `ASAAS_API_KEY` e `ASAAS_WEBHOOK_TOKEN`
 - manter `ALLOW_MANUAL_PAYMENT_CONFIRMATION=false`
-- rodar migrations no deploy ou manualmente após o primeiro deploy
+- setar `DJANGO_DEBUG=false`
+- gerar e preencher um `DJANGO_SECRET_KEY` novo (não usar o default do `.env.example`)
+- setar `DJANGO_SECURE_SSL_REDIRECT=true`, `DJANGO_SESSION_COOKIE_SECURE=true` e `DJANGO_CSRF_COOKIE_SECURE=true`
+- `migrate` e `collectstatic` já rodam automaticamente no start (`backend/Procfile` / `backend/railway.json`)
+- rodar `python manage.py createsuperuser` manualmente após o primeiro deploy para acessar o admin
