@@ -479,10 +479,15 @@ button, input, textarea, select { font-family: var(--font-body); }
 }
 
 .info-consumacao-note {
+  display: inline-block;
+  align-self: flex-start;
   font-size: 0.72rem;
-  color: var(--text-muted);
-  font-style: italic;
-  margin-top: -2px;
+  font-weight: 600;
+  color: var(--brand);
+  background: rgba(232, 90, 56, 0.1);
+  border-radius: 100px;
+  padding: 3px 9px;
+  margin-top: 1px;
 }
 
 .info-status {
@@ -595,6 +600,7 @@ button, input, textarea, select { font-family: var(--font-body); }
 
   .info-card {
     padding: var(--sp-7) var(--sp-6);
+    align-items: flex-start;
   }
 
   .info-card + .info-card::before {
@@ -655,6 +661,7 @@ button, input, textarea, select { font-family: var(--font-body); }
 
   .info-card {
     padding: var(--sp-6) var(--sp-5);
+    align-items: flex-start;
   }
 
   .footer-mark { font-size: 1.7rem; }
@@ -1460,7 +1467,7 @@ textarea:focus {
 ────────────────────────────────────────────────────── */
 .checkout-summary {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--sp-4);
   background: var(--navy-dark);
@@ -1521,11 +1528,15 @@ textarea:focus {
 }
 
 .checkout-summary-price-note {
-  font-size: 0.68rem;
-  color: rgba(255, 255, 255, 0.55);
-  margin-top: 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 100px;
+  padding: 3px 9px;
+  margin-top: 6px;
   text-align: right;
-  font-style: italic;
+  white-space: nowrap;
 }
 
 /* ──────────────────────────────────────────────────────
