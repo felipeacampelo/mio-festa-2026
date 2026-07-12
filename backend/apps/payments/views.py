@@ -14,10 +14,14 @@ logger = logging.getLogger("apps.payments")
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
 def asaas_webhook(request):
-    expected = request.headers.get("asaas-access-token", "")
-    configured = settings.ASAAS_WEBHOOK_TOKEN
+    expected = request.headers.get("asaas-access-token", "").strip()
+    configured = (settings.ASAAS_WEBHOOK_TOKEN or "").strip()
     if configured and expected != configured:
-        logger.warning("Rejected Asaas webhook because token is invalid")
+        logger.warning(
+            "Rejected Asaas webhook because token is invalid configured_length=%s received_length=%s",
+            len(configured),
+            len(expected),
+        )
         return response.Response({"detail": "invalid token"}, status=status.HTTP_401_UNAUTHORIZED)
 
     payment_payload = request.data.get("payment") or {}
