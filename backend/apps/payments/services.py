@@ -145,6 +145,7 @@ class AsaasService:
                 "billingType": "UNDEFINED",
                 "chargeType": "DETACHED",
                 "value": float(order.total_amount),
+                "dueDate": timezone.now().date().isoformat(),
                 "description": f"Pedido {order.public_id}",
                 "externalReference": str(order.public_id),
             },
