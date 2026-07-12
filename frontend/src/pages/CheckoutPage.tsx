@@ -59,6 +59,7 @@ export default function CheckoutPage() {
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
   const [buyerPhone, setBuyerPhone] = useState("");
+  const [buyerDocument, setBuyerDocument] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"pix" | "credit_card">("pix");
   const [participants, setParticipants] = useState<Participant[]>([
     { participant_name: "", participant_email: "" },
@@ -130,6 +131,7 @@ export default function CheckoutPage() {
         buyer_name: buyerName,
         buyer_email: buyerEmail,
         buyer_phone: buyerPhone,
+        buyer_document: buyerDocument,
         payment_method: paymentMethod,
         accepted_no_refund: accepted,
         participants,
@@ -139,6 +141,7 @@ export default function CheckoutPage() {
       setShowConfirm(false);
       setError(
         err.response?.data?.non_field_errors?.[0] ||
+          err.response?.data?.buyer_document?.[0] ||
           err.response?.data?.detail ||
           "Não foi possível criar o pedido. Tente novamente."
       );
@@ -238,6 +241,21 @@ export default function CheckoutPage() {
                   onChange={(e) => setBuyerPhone(e.target.value)}
                   autoComplete="tel"
                   inputMode="tel"
+                />
+              </div>
+
+              <div className="field">
+                <label htmlFor="buyerDocument">
+                  CPF ou CNPJ <span className="req" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="buyerDocument"
+                  type="text"
+                  placeholder="Ex: 000.000.000-00"
+                  value={buyerDocument}
+                  onChange={(e) => setBuyerDocument(e.target.value)}
+                  inputMode="numeric"
+                  required
                 />
               </div>
             </div>

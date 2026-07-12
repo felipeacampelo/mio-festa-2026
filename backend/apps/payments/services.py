@@ -65,6 +65,14 @@ class AsaasService:
             )
             raise
 
+    def _customer_payload(self, order: Order) -> dict:
+        return {
+            "name": order.buyer_name,
+            "email": order.buyer_email,
+            "mobilePhone": order.buyer_phone,
+            "cpfCnpj": order.buyer_document,
+        }
+
     def create_pix_payment(self, order: Order) -> dict:
         self._ensure_configured_for_production()
         if not self.configured:
@@ -87,12 +95,7 @@ class AsaasService:
             order.public_id,
             order.total_amount,
         )
-        customer = {
-            "name": order.buyer_name,
-            "email": order.buyer_email,
-            "mobilePhone": order.buyer_phone,
-        }
-        customer_resp = self._request("POST", "customers", customer)
+        customer_resp = self._request("POST", "customers", self._customer_payload(order))
         payment_resp = self._request(
             "POST",
             "payments",
@@ -133,11 +136,7 @@ class AsaasService:
             order.public_id,
             order.total_amount,
         )
-        customer_resp = self._request(
-            "POST",
-            "customers",
-            {"name": order.buyer_name, "email": order.buyer_email, "mobilePhone": order.buyer_phone},
-        )
+        customer_resp = self._request("POST", "customers", self._customer_payload(order))
         payment_resp = self._request(
             "POST",
             "payments",

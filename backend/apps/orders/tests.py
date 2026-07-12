@@ -31,6 +31,7 @@ class CheckoutFlowTests(TestCase):
                 "buyer_name": "Maria",
                 "buyer_email": "maria@example.com",
                 "buyer_phone": "11999999999",
+                "buyer_document": "12345678909",
                 "payment_method": "pix",
                 "accepted_no_refund": True,
                 "participants": [
@@ -57,6 +58,7 @@ class CheckoutFlowTests(TestCase):
             {
                 "buyer_name": "Maria",
                 "buyer_email": "maria@example.com",
+                "buyer_document": "12345678909",
                 "payment_method": "pix",
                 "accepted_no_refund": True,
                 "participants": [{"participant_name": "Joao"}],
@@ -104,6 +106,7 @@ class CheckoutFlowTests(TestCase):
                     "buyer_name": "Maria",
                     "buyer_email": "maria@example.com",
                     "buyer_phone": "11999999999",
+                    "buyer_document": "12345678909",
                     "payment_method": "pix",
                     "accepted_no_refund": True,
                     "participants": [
@@ -128,6 +131,7 @@ class CheckoutFlowTests(TestCase):
             {
                 "buyer_name": "Maria",
                 "buyer_email": "maria@example.com",
+                "buyer_document": "12345678909",
                 "payment_method": "pix",
                 "accepted_no_refund": True,
                 "participants": [{"participant_name": "Joao"}],
@@ -139,6 +143,7 @@ class CheckoutFlowTests(TestCase):
             {
                 "buyer_name": "Ana",
                 "buyer_email": "ana@example.com",
+                "buyer_document": "98765432100",
                 "payment_method": "pix",
                 "accepted_no_refund": True,
                 "participants": [{"participant_name": "Ana"}],
@@ -172,6 +177,7 @@ class CheckoutFlowTests(TestCase):
             {
                 "buyer_name": "Maria",
                 "buyer_email": "maria@example.com",
+                "buyer_document": "12345678909",
                 "payment_method": "pix",
                 "accepted_no_refund": True,
                 "participants": [{"participant_name": "Joao"}],
@@ -188,6 +194,7 @@ class CheckoutFlowTests(TestCase):
             {
                 "buyer_name": "Maria",
                 "buyer_email": "maria@example.com",
+                "buyer_document": "12345678909",
                 "payment_method": "pix",
                 "accepted_no_refund": True,
                 "participants": [{"participant_name": "Joao"}],

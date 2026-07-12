@@ -56,6 +56,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "buyer_name",
             "buyer_email",
             "buyer_phone",
+            "buyer_document",
             "quantity",
             "unit_price",
             "total_amount",
@@ -73,9 +74,16 @@ class OrderCreateSerializer(serializers.Serializer):
     buyer_name = serializers.CharField(max_length=255)
     buyer_email = serializers.EmailField()
     buyer_phone = serializers.CharField(max_length=40, required=False, allow_blank=True)
+    buyer_document = serializers.CharField(max_length=20)
     payment_method = serializers.ChoiceField(choices=Order.PaymentMethod.choices)
     accepted_no_refund = serializers.BooleanField()
     participants = ParticipantSerializer(many=True, min_length=1)
+
+    def validate_buyer_document(self, value):
+        digits = "".join(ch for ch in value if ch.isdigit())
+        if len(digits) not in (11, 14):
+            raise serializers.ValidationError("Informe um CPF (11 digitos) ou CNPJ (14 digitos) valido.")
+        return digits
 
     def validate(self, attrs):
         event = EventSettings.get_solo()

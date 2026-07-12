@@ -40,6 +40,7 @@ export type Order = {
   buyer_name: string;
   buyer_email: string;
   buyer_phone: string;
+  buyer_document: string;
   quantity: number;
   unit_price: string;
   total_amount: string;
@@ -91,6 +92,7 @@ export async function createOrder(payload: {
   buyer_name: string;
   buyer_email: string;
   buyer_phone: string;
+  buyer_document: string;
   payment_method: "pix" | "credit_card";
   accepted_no_refund: boolean;
   participants: Array<{ participant_name: string; participant_email: string }>;
