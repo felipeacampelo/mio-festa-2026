@@ -1,5 +1,6 @@
 import base64
 from io import BytesIO
+from pathlib import Path
 
 import qrcode
 from django.conf import settings
@@ -21,6 +22,10 @@ _PDF_TEXT_WARM = colors.HexColor("#3A3660")
 _PDF_TEXT_MUTED = colors.HexColor("#7A7898")
 _PDF_TICKET_WIDTH = 190 * mm
 _PDF_TICKET_HEIGHT = 95 * mm
+
+_LOGO_PATH = Path(__file__).resolve().parent.parent / "core" / "assets" / "logo_mio_festa.png"
+_LOGO_IMAGE = ImageReader(str(_LOGO_PATH))
+_LOGO_ASPECT = _LOGO_IMAGE.getSize()[1] / _LOGO_IMAGE.getSize()[0]
 
 
 def build_ticket_token(ticket: Ticket) -> str:
@@ -52,12 +57,16 @@ def _draw_ticket_page(c: pdf_canvas.Canvas, ticket: Ticket, event) -> None:
 
     c.setFillColor(_PDF_NAVY)
     c.rect(0, height - header_height, width, header_height, fill=1, stroke=0)
-    c.setFillColor(_PDF_GOLD)
-    c.setFont("Helvetica-Bold", 18)
-    c.drawString(text_x, height - 14 * mm, "MIÓ")
-    c.setFillColorRGB(1, 1, 1)
-    c.setFont("Helvetica-Bold", 8)
-    c.drawString(text_x, height - 19 * mm, "FESTA DO MUNDO 2026  ·  INGRESSO")
+    logo_height = header_height - 6 * mm
+    logo_width = logo_height / _LOGO_ASPECT
+    c.drawImage(
+        _LOGO_IMAGE,
+        text_x,
+        height - header_height + (header_height - logo_height) / 2,
+        width=logo_width,
+        height=logo_height,
+        mask="auto",
+    )
 
     event_date = timezone.localtime(event.event_date).strftime("%d/%m/%Y às %H:%M")
 
