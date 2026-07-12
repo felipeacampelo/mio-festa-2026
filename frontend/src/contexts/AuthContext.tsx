@@ -11,7 +11,11 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem("admin_token"));
+  const [token, setToken] = useState<string | null>(() => {
+    const stored = localStorage.getItem("admin_token");
+    if (stored) setAuthToken(stored);
+    return stored;
+  });
 
   useEffect(() => {
     if (!token) return;
