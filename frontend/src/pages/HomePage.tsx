@@ -186,6 +186,9 @@ export default function HomePage() {
               {event?.price && (
                 <span className="info-value info-price">{formatPrice(event.price)}</span>
               )}
+              {event?.price && (
+                <span className="info-consumacao-note">R$&nbsp;35 revertidos em consumação</span>
+              )}
               <span className="info-status">
                 {event
                   ? event.sales_status === "open" ? "Vendas abertas" : "Vendas encerradas"

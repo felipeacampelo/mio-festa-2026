@@ -182,6 +182,7 @@ export default function CheckoutPage() {
               <div className="checkout-summary-price">
                 <span className="checkout-summary-price-value">{formatPrice(event.price)}</span>
                 <span className="checkout-summary-price-label">por ingresso</span>
+                <span className="checkout-summary-price-note">R$&nbsp;35 revertidos em consumação</span>
               </div>
             )}
           </div>

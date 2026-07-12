@@ -478,6 +478,13 @@ button, input, textarea, select { font-family: var(--font-body); }
   line-height: 1.1;
 }
 
+.info-consumacao-note {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: -2px;
+}
+
 .info-status {
   font-size: 0.8rem;
   font-weight: 500;
@@ -1511,6 +1518,14 @@ textarea:focus {
   font-size: 0.72rem;
   color: rgba(255, 255, 255, 0.45);
   margin-top: 2px;
+}
+
+.checkout-summary-price-note {
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.55);
+  margin-top: 5px;
+  text-align: right;
+  font-style: italic;
 }
 
 /* ──────────────────────────────────────────────────────
