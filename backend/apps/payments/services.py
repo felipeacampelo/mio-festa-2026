@@ -142,8 +142,7 @@ class AsaasService:
             "payments",
             {
                 "customer": customer_resp["id"],
-                "billingType": "UNDEFINED",
-                "chargeType": "DETACHED",
+                "billingType": "CREDIT_CARD",
                 "value": float(order.total_amount),
                 "dueDate": timezone.now().date().isoformat(),
                 "description": f"Pedido {order.public_id}",
