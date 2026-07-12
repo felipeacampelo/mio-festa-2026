@@ -2444,6 +2444,38 @@ textarea:focus {
   .page { padding-top: var(--sp-8); }
 
   .total-value { font-size: 1.6rem; }
+
+  /* Checkout summary: empilha verticalmente no mobile */
+  .checkout-summary {
+    flex-direction: column;
+    gap: var(--sp-3);
+    padding: var(--sp-4) var(--sp-5);
+  }
+
+  .checkout-summary-price {
+    align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+    column-gap: var(--sp-2);
+    row-gap: 0;
+  }
+
+  .checkout-summary-price-value {
+    font-size: 1.4rem;
+  }
+
+  .checkout-summary-price-label {
+    align-self: flex-end;
+    margin-top: 0;
+    padding-bottom: 3px;
+  }
+
+  .checkout-summary-price-note {
+    width: 100%;
+    text-align: left;
+    margin-top: var(--sp-2);
+    white-space: normal;
+  }
 }
 
 /* ──────────────────────────────────────────────────────
