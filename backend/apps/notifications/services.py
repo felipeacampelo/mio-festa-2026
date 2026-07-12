@@ -65,7 +65,7 @@ def _email_shell(title: str, body_html: str) -> str:
         {body_html}
       </div>
       <p style="text-align:center;font-size:11px;color:#B8B4D0;margin-top:20px;">
-        MIÓ Festa do Mundo 2026 · e-mail automático, não responda
+        Igreja Batista Capital · e-mail automático, não responda
       </p>
     </div>
   </body>
@@ -85,16 +85,17 @@ def _event_details_html(order) -> str:
         ("Local", event.location),
         ("Pedido", order.order_code),
     ]
+    row_count = len(rows)
     rows_html = "".join(
         f"""
         <tr>
-          <td style="padding:6px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:{TEXT_MUTED};white-space:nowrap;">{label}</td>
-          <td style="padding:6px 0 6px 16px;font-size:14px;font-weight:600;color:{TEXT_WARM};">{value}</td>
+          <td style="padding:{'16px' if i == 0 else '6px'} 8px {'16px' if i == row_count - 1 else '6px'} 20px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:{TEXT_MUTED};white-space:nowrap;">{label}</td>
+          <td style="padding:{'16px' if i == 0 else '6px'} 20px {'16px' if i == row_count - 1 else '6px'} 16px;font-size:14px;font-weight:600;color:{TEXT_WARM};">{value}</td>
         </tr>"""
-        for label, value in rows
+        for i, (label, value) in enumerate(rows)
     )
     return f"""
-    <table role="presentation" width="100%" style="background:{CREAM};border-radius:12px;padding:16px 20px;margin-bottom:20px;border-collapse:collapse;">
+    <table role="presentation" width="100%" style="background:{CREAM};border-radius:12px;margin-bottom:20px;border-collapse:collapse;">
       {rows_html}
     </table>
     <p style="font-size:12px;color:{TEXT_MUTED};line-height:1.6;margin:0 0 24px;">{event.no_refund_policy}</p>"""
