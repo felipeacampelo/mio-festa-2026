@@ -148,6 +148,7 @@ LOGGING = {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
+            "stream": "ext://sys.stdout",
         },
     },
     "loggers": {
