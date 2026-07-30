@@ -6,6 +6,9 @@ import { EventSettings, createOrder, getEvent } from "../services/api";
 type Participant = {
   participant_name: string;
   participant_email: string;
+  is_child: boolean;
+  participant_document: string;
+  participant_birth_date: string;
 };
 
 function PixIcon() {
@@ -62,7 +65,7 @@ export default function CheckoutPage() {
   const [buyerDocument, setBuyerDocument] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"pix" | "credit_card">("pix");
   const [participants, setParticipants] = useState<Participant[]>([
-    { participant_name: "", participant_email: "" },
+    { participant_name: "", participant_email: "", is_child: false, participant_document: "", participant_birth_date: "" },
   ]);
   const [accepted, setAccepted] = useState(false);
   const [acceptError, setAcceptError] = useState(false);
@@ -83,13 +86,15 @@ export default function CheckoutPage() {
     }
   }, [error]);
 
+  const paidCount = useMemo(() => participants.filter((p) => !p.is_child).length, [participants]);
+
   const total = useMemo(() => {
     const price = Number(event?.price || 0);
-    return (price * participants.length).toLocaleString("pt-BR", {
+    return (price * paidCount).toLocaleString("pt-BR", {
       style: "currency",
       currency: "BRL",
     });
-  }, [event, participants.length]);
+  }, [event, paidCount]);
 
   const updateParticipant = (index: number, field: keyof Participant, value: string) => {
     setParticipants((current) =>
@@ -107,6 +112,9 @@ export default function CheckoutPage() {
         ...Array.from({ length: safeCount - current.length }, () => ({
           participant_name: "",
           participant_email: "",
+          is_child: false,
+          participant_document: "",
+          participant_birth_date: "",
         })),
       ];
     });
@@ -310,10 +318,19 @@ export default function CheckoutPage() {
                     <span className="participant-helper">Participante {index + 1} de {participants.length}</span>
                   </div>
 
+                  <label className="child-toggle">
+                    <input
+                      type="checkbox"
+                      checked={participant.is_child}
+                      onChange={(e) => updateParticipant(index, "is_child", e.target.checked as any)}
+                    />
+                    <span>Criança até 6 anos <span className="child-toggle-badge">Gratuito</span></span>
+                  </label>
+
                   <div className="participant-grid">
                     <div className="field">
                       <label htmlFor={`participant-name-${index}`}>
-                        Nome do participante <span className="req" aria-hidden="true">*</span>
+                        Nome {participant.is_child ? "da criança" : "do participante"} <span className="req" aria-hidden="true">*</span>
                       </label>
                       <input
                         id={`participant-name-${index}`}
@@ -327,21 +344,59 @@ export default function CheckoutPage() {
                       />
                     </div>
 
-                    <div className="field">
-                      <label htmlFor={`participant-email-${index}`}>
-                        E-mail do participante <span className="optional">(opcional)</span>
-                      </label>
-                      <input
-                        id={`participant-email-${index}`}
-                        type="email"
-                        placeholder="email@exemplo.com"
-                        value={participant.participant_email}
-                        onChange={(e) =>
-                          updateParticipant(index, "participant_email", e.target.value)
-                        }
-                        inputMode="email"
-                      />
-                    </div>
+                    {!participant.is_child && (
+                      <div className="field">
+                        <label htmlFor={`participant-email-${index}`}>
+                          E-mail do participante <span className="optional">(opcional)</span>
+                        </label>
+                        <input
+                          id={`participant-email-${index}`}
+                          type="email"
+                          placeholder="email@exemplo.com"
+                          value={participant.participant_email}
+                          onChange={(e) =>
+                            updateParticipant(index, "participant_email", e.target.value)
+                          }
+                          inputMode="email"
+                        />
+                      </div>
+                    )}
+
+                    {participant.is_child && (
+                      <>
+                        <div className="field">
+                          <label htmlFor={`participant-doc-${index}`}>
+                            CPF da criança <span className="req" aria-hidden="true">*</span>
+                          </label>
+                          <input
+                            id={`participant-doc-${index}`}
+                            type="text"
+                            placeholder="000.000.000-00"
+                            value={participant.participant_document}
+                            onChange={(e) =>
+                              updateParticipant(index, "participant_document", e.target.value)
+                            }
+                            inputMode="numeric"
+                            required
+                          />
+                        </div>
+
+                        <div className="field">
+                          <label htmlFor={`participant-birth-${index}`}>
+                            Data de nascimento <span className="req" aria-hidden="true">*</span>
+                          </label>
+                          <input
+                            id={`participant-birth-${index}`}
+                            type="date"
+                            value={participant.participant_birth_date}
+                            onChange={(e) =>
+                              updateParticipant(index, "participant_birth_date", e.target.value)
+                            }
+                            required
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
@@ -395,7 +450,10 @@ export default function CheckoutPage() {
 
               <div className="total-summary">
                 <span className="total-label">
-                  {participants.length} ingresso{participants.length !== 1 ? "s" : ""}
+                  {paidCount} ingresso{paidCount !== 1 ? "s" : ""}
+                  {participants.length > paidCount && (
+                    <span className="total-children"> + {participants.length - paidCount} criança{participants.length - paidCount !== 1 ? "s" : ""} (grátis)</span>
+                  )}
                 </span>
                 <span className="total-value">{total}</span>
               </div>
@@ -447,7 +505,8 @@ export default function CheckoutPage() {
           <div className="checkout-sticky-cta" aria-hidden="true">
             <div className="checkout-sticky-info">
               <span className="checkout-sticky-qty">
-                {participants.length} ingresso{participants.length !== 1 ? "s" : ""}
+                {paidCount} ingresso{paidCount !== 1 ? "s" : ""}
+                {participants.length > paidCount && ` + ${participants.length - paidCount} criança${participants.length - paidCount !== 1 ? "s" : ""}`}
               </span>
               <span className="checkout-sticky-total">{total}</span>
             </div>
@@ -471,7 +530,10 @@ export default function CheckoutPage() {
               <h2 id="confirm-title">Confirmar compra</h2>
               <p className="modal-body">
                 Você está comprando{" "}
-                <strong>{participants.length} ingresso{participants.length !== 1 ? "s" : ""}</strong>{" "}
+                <strong>{paidCount} ingresso{paidCount !== 1 ? "s" : ""}</strong>
+                {participants.length > paidCount && (
+                  <> + <strong>{participants.length - paidCount} ingresso{participants.length - paidCount !== 1 ? "s" : ""} infantil{participants.length - paidCount !== 1 ? "s" : ""} (grátis)</strong></>
+                )}{" "}
                 por <strong>{total}</strong>.
               </p>
               <p className="modal-warning">

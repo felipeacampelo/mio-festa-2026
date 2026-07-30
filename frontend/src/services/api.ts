@@ -95,7 +95,13 @@ export async function createOrder(payload: {
   buyer_document: string;
   payment_method: "pix" | "credit_card";
   accepted_no_refund: boolean;
-  participants: Array<{ participant_name: string; participant_email: string }>;
+  participants: Array<{
+    participant_name: string;
+    participant_email: string;
+    is_child?: boolean;
+    participant_document?: string;
+    participant_birth_date?: string;
+  }>;
 }) {
   const response = await api.post<Order>("/orders/checkout/", payload);
   return response.data;

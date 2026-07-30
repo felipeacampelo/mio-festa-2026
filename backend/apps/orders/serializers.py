@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import date
 
 from django.db import transaction
 from rest_framework import serializers
@@ -10,10 +11,36 @@ from apps.payments.services import PaymentService
 from apps.tickets.models import Ticket
 from apps.tickets.services import build_ticket_qr_data_url
 
+CHILD_MAX_AGE = 6
+
 
 class ParticipantSerializer(serializers.Serializer):
     participant_name = serializers.CharField(max_length=255)
     participant_email = serializers.EmailField(required=False, allow_blank=True)
+    is_child = serializers.BooleanField(default=False)
+    participant_document = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    participant_birth_date = serializers.DateField(required=False, allow_null=True)
+
+    def validate(self, attrs):
+        if attrs.get("is_child"):
+            doc = "".join(ch for ch in (attrs.get("participant_document") or "") if ch.isdigit())
+            if len(doc) != 11:
+                raise serializers.ValidationError(
+                    {"participant_document": "Informe o CPF da criança (11 dígitos)."}
+                )
+            attrs["participant_document"] = doc
+            birth = attrs.get("participant_birth_date")
+            if not birth:
+                raise serializers.ValidationError(
+                    {"participant_birth_date": "Informe a data de nascimento da criança."}
+                )
+            today = date.today()
+            age = today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
+            if age > CHILD_MAX_AGE:
+                raise serializers.ValidationError(
+                    {"participant_birth_date": f"Ingresso gratuito apenas para crianças de até {CHILD_MAX_AGE} anos."}
+                )
+        return attrs
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -26,6 +53,9 @@ class TicketSerializer(serializers.ModelSerializer):
             "ticket_code",
             "participant_name",
             "participant_email",
+            "is_child",
+            "participant_document",
+            "participant_birth_date",
             "status",
             "checked_in_at",
             "qr_code_data_url",
@@ -101,23 +131,28 @@ class OrderCreateSerializer(serializers.Serializer):
         event = validated_data.pop("event")
         quantity = len(participants)
         unit_price = Decimal(str(event.price))
+        paid_count = sum(1 for p in participants if not p.get("is_child"))
+        total_amount = unit_price * paid_count
         with transaction.atomic():
             order = Order.objects.create(
                 quantity=quantity,
                 unit_price=unit_price,
-                total_amount=unit_price * quantity,
+                total_amount=total_amount,
                 **validated_data,
             )
+            from apps.tickets.services import append_audit
+            from apps.tickets.models import TicketAuditLog
+
             for participant in participants:
                 ticket = Ticket.objects.create(
                     order=order,
                     participant_name=participant["participant_name"],
                     participant_email=participant.get("participant_email", ""),
+                    is_child=participant.get("is_child", False),
+                    participant_document=participant.get("participant_document", ""),
+                    participant_birth_date=participant.get("participant_birth_date"),
                     status=Ticket.Status.PENDING,
                 )
-                from apps.tickets.services import append_audit
-                from apps.tickets.models import TicketAuditLog
-
                 append_audit(ticket, TicketAuditLog.Action.CREATED, note="Ticket criado no checkout.")
             PaymentService().ensure_payment(order)
             return order
