@@ -20,10 +20,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!token) return;
     setAuthToken(token);
-    adminMe().catch(() => {
-      localStorage.removeItem("admin_token");
-      setToken(null);
-      setAuthToken(null);
+    adminMe().catch((err) => {
+      if (err?.response?.status === 401 || err?.response?.status === 403) {
+        localStorage.removeItem("admin_token");
+        setToken(null);
+        setAuthToken(null);
+      }
     });
   }, [token]);
 

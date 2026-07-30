@@ -42,16 +42,20 @@ export default function AdminDashboardPage() {
   const [event, setEvent] = useState<EventSettings | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [tickets, setTickets] = useState<any[]>([]);
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
-    Promise.all([getAdminEvent(), getAdminOrders(), getAdminTickets()]).then(
-      ([eventData, ordersData, ticketsData]) => {
+  const load = () => {
+    setError(false);
+    Promise.all([getAdminEvent(), getAdminOrders(), getAdminTickets()])
+      .then(([eventData, ordersData, ticketsData]) => {
         setEvent(eventData);
         setOrders(ordersData.results);
         setTickets(ticketsData.results);
-      }
-    );
-  }, []);
+      })
+      .catch(() => setError(true));
+  };
+
+  useEffect(() => { load(); }, []);
 
   const stats = useMemo(() => {
     const paidOrders = orders.filter((o) => o.status === "paid");
@@ -103,6 +107,13 @@ export default function AdminDashboardPage() {
           <p className="admin-kicker">Visão geral</p>
           <h1>Dashboard</h1>
         </div>
+
+        {error && (
+          <div className="admin-load-error">
+            Não foi possível carregar os dados.{" "}
+            <button className="link-btn" onClick={load}>Tentar novamente</button>
+          </div>
+        )}
 
         <div className="dashboard-grid">
           {statCards.map((card) => (

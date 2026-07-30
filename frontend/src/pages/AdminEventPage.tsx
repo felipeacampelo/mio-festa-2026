@@ -18,7 +18,7 @@ export default function AdminEventPage() {
   const messageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    getAdminEvent().then(setEvent);
+    getAdminEvent().then(setEvent).catch(() => {});
   }, []);
 
   useEffect(() => {

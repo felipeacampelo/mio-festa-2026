@@ -141,6 +141,8 @@ export default function AdminOrdersPage() {
       setTicketsCount(ticketsData.count);
       setOrdersPage(ordersData.page);
       setTicketsPage(ticketsData.page);
+    } catch {
+      // erro de rede — mantém dados anteriores, loading some
     } finally {
       setLoading(false);
     }
