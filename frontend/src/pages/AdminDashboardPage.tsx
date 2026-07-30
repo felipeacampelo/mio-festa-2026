@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import AdminShell from "../components/AdminShell";
-import { EventSettings, getAdminEvent, getAdminOrders, getAdminTickets } from "../services/api";
+import { EventSettings, getAdminEvent, getAdminStats } from "../services/api";
 
 function IconOrders() {
   return (
@@ -40,34 +40,34 @@ function IconCheckin() {
 
 export default function AdminDashboardPage() {
   const [event, setEvent] = useState<EventSettings | null>(null);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [tickets, setTickets] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    totalOrders: 0,
+    paidOrders: 0,
+    revenue: 0,
+    totalTickets: 0,
+    activeTickets: 0,
+    usedTickets: 0,
+  });
   const [error, setError] = useState(false);
 
   const load = () => {
     setError(false);
-    Promise.all([getAdminEvent(), getAdminOrders(), getAdminTickets()])
-      .then(([eventData, ordersData, ticketsData]) => {
+    Promise.all([getAdminEvent(), getAdminStats()])
+      .then(([eventData, statsData]) => {
         setEvent(eventData);
-        setOrders(ordersData.results);
-        setTickets(ticketsData.results);
+        setStats({
+          totalOrders: statsData.total_orders,
+          paidOrders: statsData.paid_orders,
+          revenue: Number(statsData.revenue || 0),
+          totalTickets: statsData.total_tickets,
+          activeTickets: statsData.active_tickets,
+          usedTickets: statsData.used_tickets,
+        });
       })
       .catch(() => setError(true));
   };
 
   useEffect(() => { load(); }, []);
-
-  const stats = useMemo(() => {
-    const paidOrders = orders.filter((o) => o.status === "paid");
-    return {
-      totalOrders: orders.length,
-      paidOrders: paidOrders.length,
-      revenue: paidOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0),
-      totalTickets: tickets.length,
-      activeTickets: tickets.filter((t) => t.status === "active").length,
-      usedTickets: tickets.filter((t) => t.status === "used").length,
-    };
-  }, [orders, tickets]);
 
   const statCards = [
     {

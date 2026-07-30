@@ -121,6 +121,18 @@ export async function adminMe() {
   return response.data;
 }
 
+export async function getAdminStats() {
+  const response = await api.get<{
+    total_orders: number;
+    paid_orders: number;
+    revenue: number;
+    total_tickets: number;
+    active_tickets: number;
+    used_tickets: number;
+  }>("/admin/stats/");
+  return response.data;
+}
+
 export async function getAdminOrders(search = "", page = 1, pageSize = 50) {
   const response = await api.get<PaginatedResponse<Order>>("/admin/orders/", {
     params: { search, page, page_size: pageSize },

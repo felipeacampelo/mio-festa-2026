@@ -1,6 +1,6 @@
 import uuid
 
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, response, status
 from rest_framework.decorators import api_view, permission_classes
@@ -96,6 +96,31 @@ class AdminTicketListView(generics.ListAPIView):
 
     def list(self, request, *args, **kwargs):
         return paginate_queryset(request, self.get_queryset(), self.serializer_class)
+
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAdminUser])
+def admin_stats(request):
+    total_orders = Order.objects.count()
+    paid_orders_qs = Order.objects.filter(status=Order.Status.PAID)
+    paid_orders = paid_orders_qs.count()
+    revenue = paid_orders_qs.aggregate(total=Sum("total_amount"))["total"] or 0
+
+    tickets_qs = Ticket.objects.filter(status__in=[Ticket.Status.ACTIVE, Ticket.Status.USED])
+    total_tickets = tickets_qs.count()
+    active_tickets = tickets_qs.filter(status=Ticket.Status.ACTIVE).count()
+    used_tickets = tickets_qs.filter(status=Ticket.Status.USED).count()
+
+    return response.Response(
+        {
+            "total_orders": total_orders,
+            "paid_orders": paid_orders,
+            "revenue": revenue,
+            "total_tickets": total_tickets,
+            "active_tickets": active_tickets,
+            "used_tickets": used_tickets,
+        }
+    )
 
 
 @api_view(["POST"])
