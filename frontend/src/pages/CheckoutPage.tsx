@@ -142,7 +142,11 @@ export default function CheckoutPage() {
         buyer_document: buyerDocument,
         payment_method: paymentMethod,
         accepted_no_refund: accepted,
-        participants,
+        participants: participants.map((p) =>
+          p.is_child
+            ? { participant_name: p.participant_name, participant_email: "", is_child: true, participant_document: p.participant_document, participant_birth_date: p.participant_birth_date }
+            : { participant_name: p.participant_name, participant_email: p.participant_email, is_child: false }
+        ),
       });
       navigate(`/pedido/${order.public_id}?access_token=${order.access_token}`);
     } catch (err: any) {
