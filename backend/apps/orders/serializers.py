@@ -14,12 +14,19 @@ from apps.tickets.services import build_ticket_qr_data_url
 CHILD_MAX_AGE = 6
 
 
+class NullableDateField(serializers.DateField):
+    def to_internal_value(self, value):
+        if value == "" or value is None:
+            return None
+        return super().to_internal_value(value)
+
+
 class ParticipantSerializer(serializers.Serializer):
     participant_name = serializers.CharField(max_length=255)
     participant_email = serializers.EmailField(required=False, allow_blank=True)
     is_child = serializers.BooleanField(default=False)
     participant_document = serializers.CharField(max_length=20, required=False, allow_blank=True)
-    participant_birth_date = serializers.DateField(required=False, allow_null=True)
+    participant_birth_date = NullableDateField(required=False, allow_null=True)
 
     def validate(self, attrs):
         if attrs.get("is_child"):
