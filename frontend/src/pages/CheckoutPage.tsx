@@ -56,6 +56,27 @@ function formatPrice(price: string | number) {
   });
 }
 
+function extractFirstError(data: any): string {
+  if (!data) return "";
+  if (typeof data === "string") return data;
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      const msg = extractFirstError(item);
+      if (msg) return msg;
+    }
+    return "";
+  }
+  for (const key of ["detail", "non_field_errors", ...Object.keys(data)]) {
+    if (!(key in data)) continue;
+    const val = data[key];
+    if (typeof val === "string") return val;
+    if (Array.isArray(val) && typeof val[0] === "string") return val[0];
+    const nested = extractFirstError(val);
+    if (nested) return nested;
+  }
+  return "";
+}
+
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const [event, setEvent] = useState<EventSettings | null>(null);
@@ -151,12 +172,7 @@ export default function CheckoutPage() {
       navigate(`/pedido/${order.public_id}?access_token=${order.access_token}`);
     } catch (err: any) {
       setShowConfirm(false);
-      setError(
-        err.response?.data?.non_field_errors?.[0] ||
-          err.response?.data?.buyer_document?.[0] ||
-          err.response?.data?.detail ||
-          "Não foi possível criar o pedido. Tente novamente."
-      );
+      setError(extractFirstError(err.response?.data) || "Não foi possível criar o pedido. Tente novamente.");
     } finally {
       setLoading(false);
     }
