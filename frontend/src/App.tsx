@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
+import { VendorAuthProvider } from "./contexts/VendorAuthContext";
+import AdminCardsPage from "./pages/AdminCardsPage";
 import AdminCheckinPage from "./pages/AdminCheckinPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminEventPage from "./pages/AdminEventPage";
@@ -9,7 +11,11 @@ import CheckoutPage from "./pages/CheckoutPage";
 import HomePage from "./pages/HomePage";
 import OrderLookupPage from "./pages/OrderLookupPage";
 import OrderPage from "./pages/OrderPage";
+import VendorCardPage from "./pages/VendorCardPage";
+import VendorHomePage from "./pages/VendorHomePage";
+import VendorLoginPage from "./pages/VendorLoginPage";
 import { PrivateRoute } from "./components/PrivateRoute";
+import { VendorPrivateRoute } from "./components/VendorPrivateRoute";
 
 export default function App() {
   return (
@@ -50,6 +56,42 @@ export default function App() {
             <PrivateRoute>
               <AdminEventPage />
             </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/cartoes"
+          element={
+            <PrivateRoute>
+              <AdminCardsPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/caixa/login"
+          element={
+            <VendorAuthProvider>
+              <VendorLoginPage />
+            </VendorAuthProvider>
+          }
+        />
+        <Route
+          path="/caixa"
+          element={
+            <VendorAuthProvider>
+              <VendorPrivateRoute>
+                <VendorHomePage />
+              </VendorPrivateRoute>
+            </VendorAuthProvider>
+          }
+        />
+        <Route
+          path="/caixa/:uid"
+          element={
+            <VendorAuthProvider>
+              <VendorPrivateRoute>
+                <VendorCardPage />
+              </VendorPrivateRoute>
+            </VendorAuthProvider>
           }
         />
         <Route path="*" element={<Navigate to="/" replace />} />

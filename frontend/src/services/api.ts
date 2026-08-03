@@ -181,3 +181,129 @@ export async function manualCheckin(ticketCode: string) {
   const response = await api.post("/checkin/manual/", { ticket_code: ticketCode });
   return response.data;
 }
+
+export type Vendor = {
+  id: number;
+  display_name: string;
+  role: "seller" | "recharge";
+};
+
+export type Card = {
+  uid: string;
+  status: "active" | "blocked" | "returned";
+  balance: string;
+  linked_at: string | null;
+  participant_name: string | null;
+  is_child: boolean | null;
+};
+
+export type CardResult = {
+  result:
+    | "ok"
+    | "insufficient_balance"
+    | "card_blocked"
+    | "card_returned"
+    | "not_linked"
+    | "already_linked"
+    | "ticket_already_has_card"
+    | "ticket_not_found"
+    | "card_not_found"
+    | "invalid_amount";
+  card?: Card;
+};
+
+export type TicketSearchResult = {
+  id: number;
+  ticket_code: string;
+  participant_name: string;
+  participant_document: string;
+  is_child: boolean;
+  order_buyer_name: string;
+  has_card: boolean;
+};
+
+export type AdminCard = {
+  id: number;
+  uid: string;
+  status: "active" | "blocked" | "returned";
+  balance: string;
+  linked_at: string | null;
+  participant_name: string | null;
+  created_at: string;
+};
+
+export type CardReconciliation = {
+  recharge_by_vendor: Array<{ vendor_id: number | null; vendor__display_name: string | null; total: string }>;
+  outstanding_balance: string;
+  status_counts: Record<string, number>;
+};
+
+export async function vendorLogin(username: string, password: string) {
+  const response = await api.post<{ token: string; vendor: Vendor }>("/cards/login/", { username, password });
+  return response.data;
+}
+
+export async function vendorMe() {
+  const response = await api.get<Vendor>("/cards/me/");
+  return response.data;
+}
+
+export async function getCard(uid: string) {
+  const response = await api.get<Card>(`/cards/${encodeURIComponent(uid)}/`);
+  return response.data;
+}
+
+export async function searchTickets(query: string) {
+  const response = await api.get<TicketSearchResult[]>("/cards/search-tickets/", { params: { q: query } });
+  return response.data;
+}
+
+export async function linkCard(uid: string, ticketId: number) {
+  const response = await api.post<CardResult>(`/cards/${encodeURIComponent(uid)}/link/`, { ticket_id: ticketId });
+  return response.data;
+}
+
+export async function debitCard(uid: string, amount: string, idempotencyKey: string, note?: string) {
+  const response = await api.post<CardResult>(`/cards/${encodeURIComponent(uid)}/debit/`, {
+    amount,
+    idempotency_key: idempotencyKey,
+    note,
+  });
+  return response.data;
+}
+
+export async function creditCard(uid: string, amount: string, idempotencyKey: string, note?: string) {
+  const response = await api.post<CardResult>(`/cards/${encodeURIComponent(uid)}/credit/`, {
+    amount,
+    idempotency_key: idempotencyKey,
+    note,
+  });
+  return response.data;
+}
+
+export async function getAdminCards(search = "", page = 1, pageSize = 50) {
+  const response = await api.get<PaginatedResponse<AdminCard>>("/admin/cards/", {
+    params: { search, page, page_size: pageSize },
+  });
+  return response.data;
+}
+
+export async function getCardReconciliation() {
+  const response = await api.get<CardReconciliation>("/admin/cards/reconciliation/");
+  return response.data;
+}
+
+export async function blockCard(uid: string) {
+  const response = await api.post<AdminCard>(`/admin/cards/${encodeURIComponent(uid)}/block/`);
+  return response.data;
+}
+
+export async function unblockCard(uid: string) {
+  const response = await api.post<AdminCard>(`/admin/cards/${encodeURIComponent(uid)}/unblock/`);
+  return response.data;
+}
+
+export async function returnCard(uid: string) {
+  const response = await api.post<AdminCard>(`/admin/cards/${encodeURIComponent(uid)}/return/`);
+  return response.data;
+}

@@ -9,6 +9,7 @@ const navGroups = [
       { to: "/admin", label: "Dashboard", end: true },
       { to: "/admin/pedidos", label: "Pedidos", end: false },
       { to: "/admin/checkin", label: "Check-in", end: false },
+      { to: "/admin/cartoes", label: "Cartões", end: false },
     ],
   },
   {
