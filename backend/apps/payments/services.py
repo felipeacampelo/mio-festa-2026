@@ -165,7 +165,10 @@ class PaymentService:
         self.asaas = AsaasService()
 
     @transaction.atomic
-    def ensure_payment(self, order: Order) -> Payment:
+    def ensure_payment(self, order: Order) -> Optional[Payment]:
+        if order.total_amount <= 0:
+            self._confirm_free_order(order)
+            return None
         logger.info(
             "Ensuring payment order_id=%s public_id=%s method=%s status=%s",
             order.id,
@@ -196,6 +199,27 @@ class PaymentService:
             payment.method,
         )
         return payment
+
+    def _confirm_free_order(self, order: Order) -> Order:
+        logger.info(
+            "Confirming free order without payment order_id=%s public_id=%s total_amount=%s",
+            order.id,
+            order.public_id,
+            order.total_amount,
+        )
+        order.status = Order.Status.PAID
+        order.paid_at = timezone.now()
+        order.save(update_fields=["status", "paid_at", "updated_at"])
+        for ticket in order.tickets.all():
+            if ticket.status == Ticket.Status.PENDING:
+                activate_ticket(ticket)
+        logger.info(
+            "Free order confirmed and tickets activated order_id=%s tickets=%s",
+            order.id,
+            order.tickets.count(),
+        )
+        send_order_paid_emails(order)
+        return order
 
     def _apply_expired_status(self, payment: Payment, payload: Optional[dict] = None) -> Payment:
         if payment.status == Payment.Status.EXPIRED and payment.order.status == Order.Status.EXPIRED:

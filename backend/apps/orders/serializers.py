@@ -25,17 +25,19 @@ class ParticipantSerializer(serializers.Serializer):
     participant_name = serializers.CharField(max_length=255)
     participant_email = serializers.EmailField(required=False, allow_blank=True)
     is_child = serializers.BooleanField(default=False)
-    participant_document = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    participant_document = serializers.CharField(max_length=32, required=False, allow_blank=True)
     participant_birth_date = NullableDateField(required=False, allow_null=True)
 
     def validate(self, attrs):
+        doc = "".join(ch for ch in (attrs.get("participant_document") or "") if ch.isdigit())
+        if len(doc) > 14:
+            raise serializers.ValidationError({"participant_document": "Documento inválido."})
+        attrs["participant_document"] = doc
         if attrs.get("is_child"):
-            doc = "".join(ch for ch in (attrs.get("participant_document") or "") if ch.isdigit())
             if len(doc) != 11:
                 raise serializers.ValidationError(
                     {"participant_document": "Informe o CPF da criança (11 dígitos)."}
                 )
-            attrs["participant_document"] = doc
             birth = attrs.get("participant_birth_date")
             if not birth:
                 raise serializers.ValidationError(
