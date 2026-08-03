@@ -56,6 +56,10 @@ function formatPrice(price: string | number) {
   });
 }
 
+function onlyDigits(value: string) {
+  return (value || "").replace(/\D/g, "");
+}
+
 function extractFirstError(data: any): string {
   if (!data) return "";
   if (typeof data === "string") return data;
@@ -143,11 +147,49 @@ export default function CheckoutPage() {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
+
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!buyerName.trim()) {
+      setError("Informe o nome de quem está comprando.");
+      return;
+    }
+    if (!emailRe.test(buyerEmail.trim())) {
+      setError("Informe um e-mail válido para receber os ingressos.");
+      return;
+    }
+    if (onlyDigits(buyerDocument).length !== 11 && onlyDigits(buyerDocument).length !== 14) {
+      setError("Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.");
+      return;
+    }
+    for (let i = 0; i < participants.length; i++) {
+      const p = participants[i];
+      const label = participants.length > 1 ? ` do ingresso ${i + 1}` : "";
+      if (!p.participant_name.trim()) {
+        setError(`Informe o nome${label}.`);
+        return;
+      }
+      if (!p.is_child && p.participant_email.trim() && !emailRe.test(p.participant_email.trim())) {
+        setError(`O e-mail${label} não é válido.`);
+        return;
+      }
+      if (p.is_child && onlyDigits(p.participant_document).length !== 11) {
+        setError(`Informe o CPF da criança${label} (11 dígitos).`);
+        return;
+      }
+      if (p.is_child && !p.participant_birth_date) {
+        setError(`Informe a data de nascimento da criança${label}.`);
+        return;
+      }
+    }
+
     if (!accepted) {
+      setError("");
       setAcceptError(true);
       checkboxRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+    setError("");
     setAcceptError(false);
     setShowConfirm(true);
   };
