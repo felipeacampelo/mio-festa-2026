@@ -13,7 +13,9 @@ INITIAL_BALANCE_ADULT = Decimal("35.00")
 INITIAL_BALANCE_CHILD = Decimal("0.00")
 
 
-def initial_balance_for_ticket(ticket: Ticket) -> Decimal:
+def initial_balance_for_ticket(ticket: Ticket, *, include_consumption: bool = True) -> Decimal:
+    if not include_consumption:
+        return Decimal("0.00")
     return INITIAL_BALANCE_CHILD if ticket.is_child else INITIAL_BALANCE_ADULT
 
 
@@ -41,7 +43,7 @@ def _replay(idempotency_key: str | None):
     return CardTransaction.objects.filter(idempotency_key=idempotency_key).select_related("card").first()
 
 
-def link_card(uid: str, ticket_id: int):
+def link_card(uid: str, ticket_id: int, *, include_consumption: bool = True):
     uid = normalize_uid(uid)
     with transaction.atomic():
         try:
@@ -64,7 +66,7 @@ def link_card(uid: str, ticket_id: int):
             return "ticket_already_has_card", card
 
         card.ticket = ticket
-        card.balance = initial_balance_for_ticket(ticket)
+        card.balance = initial_balance_for_ticket(ticket, include_consumption=include_consumption)
         card.linked_at = timezone.now()
         try:
             # Savepoint proprio: se o IntegrityError disparar aqui, so este
@@ -79,12 +81,15 @@ def link_card(uid: str, ticket_id: int):
             # disputar o mesmo ticket). A constraint unica do banco pega isso;
             # devolvemos o mesmo resultado tipado em vez de deixar vazar um 500.
             return "ticket_already_has_card", card
+        note = f"Vinculado ao ticket {ticket.ticket_code}."
+        if not include_consumption:
+            note += " Compra feita na hora, sem consumacao inclusa."
         CardTransaction.objects.create(
             card=card,
             type=CardTransaction.Type.LINK,
             amount=card.balance,
             balance_after=card.balance,
-            note=f"Vinculado ao ticket {ticket.ticket_code}.",
+            note=note,
         )
     return "ok", card
 

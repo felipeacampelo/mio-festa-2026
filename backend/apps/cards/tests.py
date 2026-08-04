@@ -133,6 +133,28 @@ class CardLinkingTests(CardsApiTestCase):
         self.assertEqual(card.balance, Decimal("35.00"))
         self.assertTrue(CardTransaction.objects.filter(card=card, type=CardTransaction.Type.LINK).exists())
 
+    def test_link_with_include_consumption_false_sets_zero_for_adult(self):
+        _, ticket = make_order_and_ticket(is_child=False)
+        self.login("checkin1")
+        self.client.get("/api/cards/UID1B/")
+        response = self.client.post(
+            "/api/cards/UID1B/link/",
+            {"ticket_id": ticket.id, "include_consumption": False},
+            format="json",
+        )
+        self.assertEqual(response.data["result"], "ok")
+        card = Card.objects.get(uid="UID1B")
+        self.assertEqual(card.balance, Decimal("0.00"))
+
+    def test_link_include_consumption_defaults_to_true_when_omitted(self):
+        _, ticket = make_order_and_ticket(is_child=False)
+        self.login("checkin1")
+        self.client.get("/api/cards/UID1C/")
+        response = self.client.post("/api/cards/UID1C/link/", {"ticket_id": ticket.id}, format="json")
+        self.assertEqual(response.data["result"], "ok")
+        card = Card.objects.get(uid="UID1C")
+        self.assertEqual(card.balance, Decimal("35.00"))
+
     def test_link_sets_zero_balance_for_child(self):
         _, ticket = make_order_and_ticket(is_child=True, participant_document="11122233344")
         self.login("checkin1")

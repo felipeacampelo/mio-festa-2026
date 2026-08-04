@@ -293,8 +293,11 @@ export async function searchTickets(query: string) {
   return response.data;
 }
 
-export async function linkCard(uid: string, ticketId: number) {
-  const response = await vendorApi.post<CardResult>(`/cards/${encodeURIComponent(uid)}/link/`, { ticket_id: ticketId });
+export async function linkCard(uid: string, ticketId: number, includeConsumption = true) {
+  const response = await vendorApi.post<CardResult>(`/cards/${encodeURIComponent(uid)}/link/`, {
+    ticket_id: ticketId,
+    include_consumption: includeConsumption,
+  });
   return response.data;
 }
 

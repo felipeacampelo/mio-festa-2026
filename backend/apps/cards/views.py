@@ -77,7 +77,11 @@ def search_tickets(request):
 def link_card(request, uid):
     serializer = CardLinkSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    result, card = services.link_card(uid, serializer.validated_data["ticket_id"])
+    result, card = services.link_card(
+        uid,
+        serializer.validated_data["ticket_id"],
+        include_consumption=serializer.validated_data["include_consumption"],
+    )
     payload = {"result": result}
     if card is not None:
         payload["card"] = CardSerializer(card).data

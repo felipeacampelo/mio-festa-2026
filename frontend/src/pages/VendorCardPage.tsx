@@ -70,6 +70,7 @@ export default function VendorCardPage() {
   const [searchResults, setSearchResults] = useState<TicketSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [linking, setLinking] = useState<number | null>(null);
+  const [includeConsumption, setIncludeConsumption] = useState(true);
 
   const [amount, setAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -115,7 +116,7 @@ export default function VendorCardPage() {
     setLinking(ticketId);
     setError("");
     try {
-      const response = await linkCard(uid, ticketId);
+      const response = await linkCard(uid, ticketId, includeConsumption);
       if (response.result === "ok" && response.card) {
         setCard(response.card);
         setQuery("");
@@ -248,6 +249,14 @@ export default function VendorCardPage() {
                 autoFocus
               />
             </div>
+            <label className="child-toggle">
+              <input
+                type="checkbox"
+                checked={!includeConsumption}
+                onChange={(e) => setIncludeConsumption(!e.target.checked)}
+              />
+              <span>Compra feita na hora (cartão sem consumação, saldo inicial R$ 0,00)</span>
+            </label>
             {searching && <p>Buscando…</p>}
             {!searching && query.trim() && searchResults.length === 0 && <p>Nenhum participante encontrado.</p>}
             {searchResults.map((t) => (
