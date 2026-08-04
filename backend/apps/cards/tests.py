@@ -11,7 +11,7 @@ from apps.orders.models import Order
 from apps.tickets.models import Ticket
 
 
-def make_order_and_ticket(*, is_child=False, participant_name="Joao", participant_document=""):
+def make_order_and_ticket(*, is_child=False, participant_name="Joao", participant_document="", status=Ticket.Status.ACTIVE):
     order = Order.objects.create(
         buyer_name="Maria",
         buyer_email="maria@example.com",
@@ -28,7 +28,7 @@ def make_order_and_ticket(*, is_child=False, participant_name="Joao", participan
         participant_name=participant_name,
         participant_document=participant_document,
         is_child=is_child,
-        status=Ticket.Status.ACTIVE,
+        status=status,
     )
     return order, ticket
 
@@ -44,6 +44,7 @@ class CardsApiTestCase(TestCase):
         self.client = APIClient()
         self.seller = make_vendor("vendedor1", Vendor.Role.SELLER)
         self.recharge = make_vendor("caixa1", Vendor.Role.RECHARGE)
+        self.checkin = make_vendor("checkin1", Vendor.Role.CHECKIN)
 
     def login(self, username):
         response = self.client.post(
@@ -102,7 +103,7 @@ class CardLinkingTests(CardsApiTestCase):
 
     def test_search_tickets_by_partial_name(self):
         _, ticket = make_order_and_ticket(participant_name="Joao Pereira", participant_document="11122233344")
-        self.login("vendedor1")
+        self.login("checkin1")
         response = self.client.get("/api/cards/search-tickets/?q=Joao")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
@@ -110,14 +111,20 @@ class CardLinkingTests(CardsApiTestCase):
 
     def test_search_tickets_by_cpf_digits(self):
         _, ticket = make_order_and_ticket(participant_name="Joao Pereira", participant_document="11122233344")
-        self.login("vendedor1")
+        self.login("checkin1")
         response = self.client.get("/api/cards/search-tickets/?q=111.222.333-44")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data[0]["id"], ticket.id)
 
+    def test_seller_cannot_search_tickets(self):
+        make_order_and_ticket(participant_name="Joao Pereira")
+        self.login("vendedor1")
+        response = self.client.get("/api/cards/search-tickets/?q=Joao")
+        self.assertEqual(response.status_code, 403)
+
     def test_link_sets_initial_balance_for_adult(self):
         _, ticket = make_order_and_ticket(is_child=False)
-        self.login("vendedor1")
+        self.login("checkin1")
         self.client.get("/api/cards/UID1/")
         response = self.client.post("/api/cards/UID1/link/", {"ticket_id": ticket.id}, format="json")
         self.assertEqual(response.status_code, 200)
@@ -128,7 +135,7 @@ class CardLinkingTests(CardsApiTestCase):
 
     def test_link_sets_zero_balance_for_child(self):
         _, ticket = make_order_and_ticket(is_child=True, participant_document="11122233344")
-        self.login("vendedor1")
+        self.login("checkin1")
         self.client.get("/api/cards/UID2/")
         response = self.client.post("/api/cards/UID2/link/", {"ticket_id": ticket.id}, format="json")
         self.assertEqual(response.status_code, 200)
@@ -138,7 +145,7 @@ class CardLinkingTests(CardsApiTestCase):
     def test_relinking_already_linked_card_is_rejected(self):
         _, ticket = make_order_and_ticket()
         _, ticket2 = make_order_and_ticket(participant_name="Outra Pessoa")
-        self.login("vendedor1")
+        self.login("checkin1")
         self.client.get("/api/cards/UID3/")
         self.client.post("/api/cards/UID3/link/", {"ticket_id": ticket.id}, format="json")
         response = self.client.post("/api/cards/UID3/link/", {"ticket_id": ticket2.id}, format="json")
@@ -148,7 +155,7 @@ class CardLinkingTests(CardsApiTestCase):
 
     def test_linking_ticket_that_already_has_a_card_is_rejected(self):
         _, ticket = make_order_and_ticket()
-        self.login("vendedor1")
+        self.login("checkin1")
         self.client.get("/api/cards/UID4/")
         self.client.post("/api/cards/UID4/link/", {"ticket_id": ticket.id}, format="json")
         self.client.get("/api/cards/UID5/")
@@ -156,17 +163,39 @@ class CardLinkingTests(CardsApiTestCase):
         self.assertEqual(response.data["result"], "ticket_already_has_card")
 
     def test_linking_nonexistent_ticket_returns_error(self):
-        self.login("vendedor1")
+        self.login("checkin1")
         self.client.get("/api/cards/UID6/")
         response = self.client.post("/api/cards/UID6/link/", {"ticket_id": 999999}, format="json")
         self.assertEqual(response.data["result"], "ticket_not_found")
 
-    def test_recharge_role_can_also_link_cards(self):
+    def test_linking_pending_ticket_is_rejected(self):
+        _, ticket = make_order_and_ticket(status=Ticket.Status.PENDING)
+        self.login("checkin1")
+        self.client.get("/api/cards/UID6B/")
+        response = self.client.post("/api/cards/UID6B/link/", {"ticket_id": ticket.id}, format="json")
+        self.assertEqual(response.data["result"], "ticket_not_eligible")
+        self.assertFalse(Card.objects.get(uid="UID6B").is_linked)
+
+    def test_linking_cancelled_ticket_is_rejected(self):
+        _, ticket = make_order_and_ticket(status=Ticket.Status.CANCELLED)
+        self.login("checkin1")
+        self.client.get("/api/cards/UID6C/")
+        response = self.client.post("/api/cards/UID6C/link/", {"ticket_id": ticket.id}, format="json")
+        self.assertEqual(response.data["result"], "ticket_not_eligible")
+
+    def test_seller_cannot_link_cards(self):
         _, ticket = make_order_and_ticket()
-        self.login("caixa1")
+        self.login("vendedor1")
         self.client.get("/api/cards/UID7/")
         response = self.client.post("/api/cards/UID7/link/", {"ticket_id": ticket.id}, format="json")
-        self.assertEqual(response.data["result"], "ok")
+        self.assertEqual(response.status_code, 403)
+
+    def test_recharge_cannot_link_cards(self):
+        _, ticket = make_order_and_ticket()
+        self.login("caixa1")
+        self.client.get("/api/cards/UID8/")
+        response = self.client.post("/api/cards/UID8/link/", {"ticket_id": ticket.id}, format="json")
+        self.assertEqual(response.status_code, 403)
 
 
 class CardDebitTests(CardsApiTestCase):
@@ -426,3 +455,57 @@ class CardDebitConcurrencyTests(TransactionTestCase):
         self.assertEqual(results.count("ok"), 1)
         self.assertEqual(results.count("insufficient_balance"), 1)
         self.assertEqual(self.card.balance, Decimal("0.00"))
+
+
+class CardLinkConcurrencyTests(TransactionTestCase):
+    """Two different physical cards racing to link the SAME ticket.
+
+    select_for_update() in link_card() locks the CARD row being written, not
+    the ticket - so this race isn't covered by that lock. The ticket-level
+    OneToOneField uniqueness at the DB layer is the actual guard here; this
+    test exists to prove the IntegrityError it raises is caught and turned
+    into a typed "ticket_already_has_card" result instead of leaking as a 500.
+
+    Same sqlite caveat as CardDebitConcurrencyTests: skip outside Postgres.
+    """
+
+    def setUp(self):
+        if connections["default"].vendor != "postgresql":
+            self.skipTest(
+                "Concurrency test requires Postgres (set DATABASE_URL) - "
+                "sqlite does not enforce select_for_update() row locks."
+            )
+        User = get_user_model()
+        user = User.objects.create_user(username="checkin_conc", password="senha123")
+        self.vendor = Vendor.objects.create(user=user, role=Vendor.Role.CHECKIN, display_name="C")
+        order = Order.objects.create(
+            buyer_name="Maria", buyer_email="maria@example.com", buyer_document="12345678909",
+            quantity=1, unit_price=Decimal("25.00"), total_amount=Decimal("25.00"),
+            accepted_no_refund=True, payment_method=Order.PaymentMethod.PIX, status=Order.Status.PAID,
+        )
+        self.ticket = Ticket.objects.create(order=order, participant_name="Joao", status=Ticket.Status.ACTIVE)
+        self.card_a = Card.objects.create(uid="RACEA")
+        self.card_b = Card.objects.create(uid="RACEB")
+
+    def test_two_cards_racing_same_ticket_only_one_links(self):
+        from apps.cards import services
+
+        results = []
+
+        def run(uid):
+            try:
+                result, _ = services.link_card(uid, self.ticket.id)
+                results.append(result)
+            finally:
+                connections.close_all()
+
+        t1 = threading.Thread(target=run, args=("RACEA",))
+        t2 = threading.Thread(target=run, args=("RACEB",))
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        self.assertEqual(results.count("ok"), 1)
+        self.assertEqual(results.count("ticket_already_has_card"), 1)
+        self.assertEqual(Card.objects.filter(ticket=self.ticket).count(), 1)

@@ -1,11 +1,13 @@
 from decimal import Decimal
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.tickets.models import Ticket
 
 from .models import Card, CardTransaction
+
+LINKABLE_TICKET_STATUSES = [Ticket.Status.ACTIVE, Ticket.Status.USED]
 
 INITIAL_BALANCE_ADULT = Decimal("35.00")
 INITIAL_BALANCE_CHILD = Decimal("0.00")
@@ -55,13 +57,28 @@ def link_card(uid: str, ticket_id: int):
         except Ticket.DoesNotExist:
             return "ticket_not_found", card
 
+        if ticket.status not in LINKABLE_TICKET_STATUSES:
+            return "ticket_not_eligible", card
+
         if Card.objects.filter(ticket=ticket).exclude(pk=card.pk).exists():
             return "ticket_already_has_card", card
 
         card.ticket = ticket
         card.balance = initial_balance_for_ticket(ticket)
         card.linked_at = timezone.now()
-        card.save(update_fields=["ticket", "balance", "linked_at", "updated_at"])
+        try:
+            # Savepoint proprio: se o IntegrityError disparar aqui, so este
+            # trecho e desfeito. Sem o savepoint, capturar a excecao ainda
+            # deixaria a transacao externa inutilizavel no Postgres.
+            with transaction.atomic():
+                card.save(update_fields=["ticket", "balance", "linked_at", "updated_at"])
+        except IntegrityError:
+            # Outro cartao venceu a corrida e vinculou este mesmo ticket entre a
+            # checagem acima e este save (select_for_update trava a linha do
+            # CARTAO, nao a do ticket, entao dois cartoes diferentes podem
+            # disputar o mesmo ticket). A constraint unica do banco pega isso;
+            # devolvemos o mesmo resultado tipado em vez de deixar vazar um 500.
+            return "ticket_already_has_card", card
         CardTransaction.objects.create(
             card=card,
             type=CardTransaction.Type.LINK,

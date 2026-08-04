@@ -20,3 +20,8 @@ class IsSeller(IsVendor):
 class IsRecharge(IsVendor):
     def has_permission(self, request, view):
         return super().has_permission(request, view) and request.user.vendor_profile.role == Vendor.Role.RECHARGE
+
+
+class IsCheckin(IsVendor):
+    def has_permission(self, request, view):
+        return super().has_permission(request, view) and request.user.vendor_profile.role == Vendor.Role.CHECKIN

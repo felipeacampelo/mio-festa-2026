@@ -73,6 +73,40 @@ export function setAuthToken(token: string | null) {
   }
 }
 
+// Instancia separada para o login de vendedor/caixa/check-in: evita que a
+// sessao de admin e a de vendedor disputem o mesmo header Authorization
+// quando as duas ficam montadas na mesma aba, e permite reagir a 401/403
+// (token expirado, vendedor desativado no meio do turno) sem misturar com
+// a logica de auth do admin.
+const vendorApi = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000/api",
+});
+
+export function setVendorAuthToken(token: string | null) {
+  if (token) {
+    vendorApi.defaults.headers.common.Authorization = `Token ${token}`;
+  } else {
+    delete vendorApi.defaults.headers.common.Authorization;
+  }
+}
+
+let onVendorUnauthorized: (() => void) | null = null;
+
+export function setVendorUnauthorizedHandler(handler: (() => void) | null) {
+  onVendorUnauthorized = handler;
+}
+
+vendorApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status;
+    if (status === 401 || status === 403) {
+      onVendorUnauthorized?.();
+    }
+    return Promise.reject(error);
+  }
+);
+
 export async function getEvent() {
   const response = await api.get<EventSettings>("/events/current/");
   return response.data;
@@ -185,7 +219,7 @@ export async function manualCheckin(ticketCode: string) {
 export type Vendor = {
   id: number;
   display_name: string;
-  role: "seller" | "recharge";
+  role: "seller" | "recharge" | "checkin";
 };
 
 export type Card = {
@@ -207,6 +241,7 @@ export type CardResult = {
     | "already_linked"
     | "ticket_already_has_card"
     | "ticket_not_found"
+    | "ticket_not_eligible"
     | "card_not_found"
     | "invalid_amount";
   card?: Card;
@@ -239,32 +274,32 @@ export type CardReconciliation = {
 };
 
 export async function vendorLogin(username: string, password: string) {
-  const response = await api.post<{ token: string; vendor: Vendor }>("/cards/login/", { username, password });
+  const response = await vendorApi.post<{ token: string; vendor: Vendor }>("/cards/login/", { username, password });
   return response.data;
 }
 
 export async function vendorMe() {
-  const response = await api.get<Vendor>("/cards/me/");
+  const response = await vendorApi.get<Vendor>("/cards/me/");
   return response.data;
 }
 
 export async function getCard(uid: string) {
-  const response = await api.get<Card>(`/cards/${encodeURIComponent(uid)}/`);
+  const response = await vendorApi.get<Card>(`/cards/${encodeURIComponent(uid)}/`);
   return response.data;
 }
 
 export async function searchTickets(query: string) {
-  const response = await api.get<TicketSearchResult[]>("/cards/search-tickets/", { params: { q: query } });
+  const response = await vendorApi.get<TicketSearchResult[]>("/cards/search-tickets/", { params: { q: query } });
   return response.data;
 }
 
 export async function linkCard(uid: string, ticketId: number) {
-  const response = await api.post<CardResult>(`/cards/${encodeURIComponent(uid)}/link/`, { ticket_id: ticketId });
+  const response = await vendorApi.post<CardResult>(`/cards/${encodeURIComponent(uid)}/link/`, { ticket_id: ticketId });
   return response.data;
 }
 
 export async function debitCard(uid: string, amount: string, idempotencyKey: string, note?: string) {
-  const response = await api.post<CardResult>(`/cards/${encodeURIComponent(uid)}/debit/`, {
+  const response = await vendorApi.post<CardResult>(`/cards/${encodeURIComponent(uid)}/debit/`, {
     amount,
     idempotency_key: idempotencyKey,
     note,
@@ -273,7 +308,7 @@ export async function debitCard(uid: string, amount: string, idempotencyKey: str
 }
 
 export async function creditCard(uid: string, amount: string, idempotencyKey: string, note?: string) {
-  const response = await api.post<CardResult>(`/cards/${encodeURIComponent(uid)}/credit/`, {
+  const response = await vendorApi.post<CardResult>(`/cards/${encodeURIComponent(uid)}/credit/`, {
     amount,
     idempotency_key: idempotencyKey,
     note,

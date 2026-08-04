@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import VendorShell from "../components/VendorShell";
 import { useVendorAuth } from "../contexts/VendorAuthContext";
 import {
@@ -51,10 +51,15 @@ const RESULT_LABELS: Record<string, string> = {
   not_linked: "Cartão ainda não vinculado",
   card_not_found: "Cartão não encontrado",
   invalid_amount: "Valor inválido",
+  already_linked: "Este cartão já está vinculado a outra pessoa.",
+  ticket_already_has_card: "Este participante já tem um cartão vinculado.",
+  ticket_not_found: "Participante não encontrado.",
+  ticket_not_eligible: "Este ingresso ainda não pode ser vinculado a um cartão.",
 };
 
 export default function VendorCardPage() {
   const { uid = "" } = useParams();
+  const navigate = useNavigate();
   const { vendor, logout } = useVendorAuth();
 
   const [card, setCard] = useState<Card | null>(null);
@@ -69,6 +74,7 @@ export default function VendorCardPage() {
   const [amount, setAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<CardResult | null>(null);
+  const [justLinkedName, setJustLinkedName] = useState<string | null>(null);
   const idempotencyKeyRef = useRef<string | null>(null);
 
   const setAmountForNewAttempt = (value: string) => {
@@ -114,6 +120,7 @@ export default function VendorCardPage() {
         setCard(response.card);
         setQuery("");
         setSearchResults([]);
+        setJustLinkedName(response.card.participant_name);
       } else {
         setError(RESULT_LABELS[response.result] || "Não foi possível vincular este cartão.");
       }
@@ -144,10 +151,8 @@ export default function VendorCardPage() {
     }
   };
 
-  const resetToNeutral = () => {
-    setResult(null);
-    setAmountForNewAttempt("");
-    loadCard();
+  const goToNextCard = () => {
+    navigate("/caixa", { replace: true });
   };
 
   if (loading) {
@@ -171,7 +176,7 @@ export default function VendorCardPage() {
           {card?.participant_name && <p className="checkin-result-name">{card.participant_name}</p>}
           {success && <p className="checkin-result-code">{formatMoney(amount)}</p>}
           {result.card && <p className="checkin-result-reason">Saldo atual: {formatMoney(result.card.balance)}</p>}
-          <button className="button checkin-next-btn" onClick={resetToNeutral}>
+          <button className="button checkin-next-btn" onClick={goToNextCard}>
             Próximo
           </button>
         </div>
@@ -198,7 +203,35 @@ export default function VendorCardPage() {
     );
   }
 
+  if (justLinkedName) {
+    return (
+      <VendorShell vendor={vendor} onLogout={logout}>
+        <div className="checkin-result checkin-success">
+          <div className="checkin-result-icon"><IconCheck /></div>
+          <p className="checkin-result-status">Cartão vinculado</p>
+          <p className="checkin-result-name">{justLinkedName}</p>
+          <button className="button checkin-next-btn" onClick={goToNextCard}>
+            Próximo
+          </button>
+        </div>
+      </VendorShell>
+    );
+  }
+
   if (!card.participant_name) {
+    if (vendor?.role !== "checkin") {
+      return (
+        <VendorShell vendor={vendor} onLogout={logout}>
+          <div className="card">
+            <h2>Cartão ainda não vinculado</h2>
+            <p>Este cartão precisa ser vinculado no check-in antes de ser usado. Peça para a pessoa procurar o check-in.</p>
+            <button className="button button-secondary" onClick={goToNextCard} style={{ marginTop: "1rem" }}>
+              Próximo
+            </button>
+          </div>
+        </VendorShell>
+      );
+    }
     return (
       <VendorShell vendor={vendor} onLogout={logout}>
         <div className="card">
@@ -235,6 +268,20 @@ export default function VendorCardPage() {
             ))}
           </div>
           {error && <div className="error-box" role="alert">{error}</div>}
+        </div>
+      </VendorShell>
+    );
+  }
+
+  if (vendor?.role === "checkin") {
+    return (
+      <VendorShell vendor={vendor} onLogout={logout}>
+        <div className="card">
+          <h2>{card.participant_name}</h2>
+          <p>Cartão já vinculado. Nada mais a fazer aqui.</p>
+          <button className="button button-secondary" onClick={goToNextCard} style={{ marginTop: "1rem" }}>
+            Próximo
+          </button>
         </div>
       </VendorShell>
     );

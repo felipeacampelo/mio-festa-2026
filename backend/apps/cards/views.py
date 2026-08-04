@@ -8,7 +8,7 @@ from rest_framework.exceptions import AuthenticationFailed
 from apps.tickets.models import Ticket
 
 from . import services
-from .permissions import IsRecharge, IsSeller, IsVendor
+from .permissions import IsCheckin, IsRecharge, IsSeller, IsVendor
 from .serializers import (
     CardAmountSerializer,
     CardLinkSerializer,
@@ -55,7 +55,7 @@ def get_card(request, uid):
 
 
 @api_view(["GET"])
-@permission_classes([IsVendor])
+@permission_classes([IsCheckin])
 def search_tickets(request):
     query = request.query_params.get("q", "").strip()
     if not query:
@@ -73,7 +73,7 @@ def search_tickets(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsVendor])
+@permission_classes([IsCheckin])
 def link_card(request, uid):
     serializer = CardLinkSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)

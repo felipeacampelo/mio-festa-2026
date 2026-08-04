@@ -7,6 +7,7 @@ class Vendor(models.Model):
     class Role(models.TextChoices):
         SELLER = "seller", "Vendedor"
         RECHARGE = "recharge", "Caixa de recarga"
+        CHECKIN = "checkin", "Check-in"
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="vendor_profile")
     role = models.CharField(max_length=20, choices=Role.choices)

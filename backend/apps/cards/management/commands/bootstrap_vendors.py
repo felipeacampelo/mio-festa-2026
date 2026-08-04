@@ -18,7 +18,7 @@ class Command(BaseCommand):
         parser.add_argument("--username")
         parser.add_argument("--password")
         parser.add_argument("--display-name")
-        parser.add_argument("--role", choices=[Vendor.Role.SELLER, Vendor.Role.RECHARGE])
+        parser.add_argument("--role", choices=[Vendor.Role.SELLER, Vendor.Role.RECHARGE, Vendor.Role.CHECKIN])
 
     def handle(self, *args, **options):
         if options["file"]:

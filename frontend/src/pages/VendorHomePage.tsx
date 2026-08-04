@@ -1,19 +1,20 @@
 import VendorShell from "../components/VendorShell";
 import { useVendorAuth } from "../contexts/VendorAuthContext";
 
+const MESSAGES: Record<string, string> = {
+  recharge: "Toque um cartão para lançar uma recarga de saldo.",
+  checkin: "Toque um cartão para vincular ao participante.",
+  seller: "Toque um cartão para cobrar uma compra.",
+};
+
 export default function VendorHomePage() {
   const { vendor, logout } = useVendorAuth();
-  const isRecharge = vendor?.role === "recharge";
 
   return (
     <VendorShell vendor={vendor} onLogout={logout}>
       <div className="card">
         <h2>Aguardando cartão</h2>
-        <p>
-          {isRecharge
-            ? "Toque um cartão para lançar uma recarga de saldo."
-            : "Toque um cartão para cobrar uma compra."}
-        </p>
+        <p>{(vendor && MESSAGES[vendor.role]) || "Toque um cartão para começar."}</p>
       </div>
     </VendorShell>
   );
