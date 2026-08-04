@@ -13,8 +13,20 @@ INITIAL_BALANCE_ADULT = Decimal("35.00")
 INITIAL_BALANCE_CHILD = Decimal("0.00")
 
 
-def initial_balance_for_ticket(ticket: Ticket, *, include_consumption: bool = True) -> Decimal:
-    if not include_consumption:
+def is_purchased_on_event_day(ticket: Ticket) -> bool:
+    from apps.events.models import EventSettings
+
+    event = EventSettings.get_solo()
+    order_date = timezone.localtime(ticket.order.created_at).date()
+    event_date = timezone.localtime(event.event_date).date()
+    return order_date == event_date
+
+
+def initial_balance_for_ticket(ticket: Ticket) -> Decimal:
+    # Compra feita no dia do evento nao tem os R$35 de consumacao embutidos
+    # no preco (esses so vem no ingresso comprado com antecedencia), entao
+    # o cartao sai zerado independente de ser adulto ou crianca.
+    if is_purchased_on_event_day(ticket):
         return Decimal("0.00")
     return INITIAL_BALANCE_CHILD if ticket.is_child else INITIAL_BALANCE_ADULT
 
@@ -43,7 +55,7 @@ def _replay(idempotency_key: str | None):
     return CardTransaction.objects.filter(idempotency_key=idempotency_key).select_related("card").first()
 
 
-def link_card(uid: str, ticket_id: int, *, include_consumption: bool = True):
+def link_card(uid: str, ticket_id: int):
     uid = normalize_uid(uid)
     with transaction.atomic():
         try:
@@ -66,7 +78,7 @@ def link_card(uid: str, ticket_id: int, *, include_consumption: bool = True):
             return "ticket_already_has_card", card
 
         card.ticket = ticket
-        card.balance = initial_balance_for_ticket(ticket, include_consumption=include_consumption)
+        card.balance = initial_balance_for_ticket(ticket)
         card.linked_at = timezone.now()
         try:
             # Savepoint proprio: se o IntegrityError disparar aqui, so este
@@ -82,8 +94,8 @@ def link_card(uid: str, ticket_id: int, *, include_consumption: bool = True):
             # devolvemos o mesmo resultado tipado em vez de deixar vazar um 500.
             return "ticket_already_has_card", card
         note = f"Vinculado ao ticket {ticket.ticket_code}."
-        if not include_consumption:
-            note += " Compra feita na hora, sem consumacao inclusa."
+        if is_purchased_on_event_day(ticket):
+            note += " Compra feita no dia do evento, sem consumacao inclusa."
         CardTransaction.objects.create(
             card=card,
             type=CardTransaction.Type.LINK,

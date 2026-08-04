@@ -4,6 +4,7 @@ from rest_framework import serializers
 
 from apps.tickets.models import Ticket
 
+from . import services
 from .models import Card, CardTransaction, Vendor
 
 
@@ -20,12 +21,12 @@ class CardAmountSerializer(serializers.Serializer):
 
 class CardLinkSerializer(serializers.Serializer):
     ticket_id = serializers.IntegerField()
-    include_consumption = serializers.BooleanField(default=True)
 
 
 class TicketSearchResultSerializer(serializers.ModelSerializer):
     order_buyer_name = serializers.CharField(source="order.buyer_name", read_only=True)
     has_card = serializers.SerializerMethodField()
+    purchased_on_event_day = serializers.SerializerMethodField()
 
     class Meta:
         model = Ticket
@@ -37,10 +38,14 @@ class TicketSearchResultSerializer(serializers.ModelSerializer):
             "is_child",
             "order_buyer_name",
             "has_card",
+            "purchased_on_event_day",
         ]
 
     def get_has_card(self, obj: Ticket) -> bool:
         return Card.objects.filter(ticket=obj).exists()
+
+    def get_purchased_on_event_day(self, obj: Ticket) -> bool:
+        return services.is_purchased_on_event_day(obj)
 
 
 class CardTransactionSerializer(serializers.ModelSerializer):

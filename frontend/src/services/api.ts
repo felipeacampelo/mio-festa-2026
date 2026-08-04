@@ -255,6 +255,7 @@ export type TicketSearchResult = {
   is_child: boolean;
   order_buyer_name: string;
   has_card: boolean;
+  purchased_on_event_day: boolean;
 };
 
 export type AdminCard = {
@@ -293,10 +294,9 @@ export async function searchTickets(query: string) {
   return response.data;
 }
 
-export async function linkCard(uid: string, ticketId: number, includeConsumption = true) {
+export async function linkCard(uid: string, ticketId: number) {
   const response = await vendorApi.post<CardResult>(`/cards/${encodeURIComponent(uid)}/link/`, {
     ticket_id: ticketId,
-    include_consumption: includeConsumption,
   });
   return response.data;
 }

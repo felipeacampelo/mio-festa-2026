@@ -1,17 +1,27 @@
 import threading
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.db import connections
 from django.test import TestCase, TransactionTestCase
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.cards.models import Card, CardTransaction, Vendor
+from apps.events.models import EventSettings
 from apps.orders.models import Order
 from apps.tickets.models import Ticket
 
 
-def make_order_and_ticket(*, is_child=False, participant_name="Joao", participant_document="", status=Ticket.Status.ACTIVE):
+def make_order_and_ticket(
+    *,
+    is_child=False,
+    participant_name="Joao",
+    participant_document="",
+    status=Ticket.Status.ACTIVE,
+    order_created_at=None,
+):
     order = Order.objects.create(
         buyer_name="Maria",
         buyer_email="maria@example.com",
@@ -23,6 +33,10 @@ def make_order_and_ticket(*, is_child=False, participant_name="Joao", participan
         payment_method=Order.PaymentMethod.PIX,
         status=Order.Status.PAID,
     )
+    if order_created_at is not None:
+        # created_at usa auto_now_add, entao so da pra ajustar via update().
+        Order.objects.filter(pk=order.pk).update(created_at=order_created_at)
+        order.refresh_from_db()
     ticket = Ticket.objects.create(
         order=order,
         participant_name=participant_name,
@@ -45,6 +59,9 @@ class CardsApiTestCase(TestCase):
         self.seller = make_vendor("vendedor1", Vendor.Role.SELLER)
         self.recharge = make_vendor("caixa1", Vendor.Role.RECHARGE)
         self.checkin = make_vendor("checkin1", Vendor.Role.CHECKIN)
+        event = EventSettings.get_solo()
+        event.event_date = timezone.now() + timedelta(days=10)
+        event.save()
 
     def login(self, username):
         response = self.client.post(
@@ -133,27 +150,40 @@ class CardLinkingTests(CardsApiTestCase):
         self.assertEqual(card.balance, Decimal("35.00"))
         self.assertTrue(CardTransaction.objects.filter(card=card, type=CardTransaction.Type.LINK).exists())
 
-    def test_link_with_include_consumption_false_sets_zero_for_adult(self):
-        _, ticket = make_order_and_ticket(is_child=False)
+    def test_link_sets_zero_balance_for_adult_purchased_on_event_day(self):
+        event = EventSettings.get_solo()
+        _, ticket = make_order_and_ticket(is_child=False, order_created_at=event.event_date)
         self.login("checkin1")
         self.client.get("/api/cards/UID1B/")
-        response = self.client.post(
-            "/api/cards/UID1B/link/",
-            {"ticket_id": ticket.id, "include_consumption": False},
-            format="json",
-        )
+        response = self.client.post("/api/cards/UID1B/link/", {"ticket_id": ticket.id}, format="json")
         self.assertEqual(response.data["result"], "ok")
         card = Card.objects.get(uid="UID1B")
         self.assertEqual(card.balance, Decimal("0.00"))
+        txn = CardTransaction.objects.filter(card=card, type=CardTransaction.Type.LINK).first()
+        self.assertIn("dia do evento", txn.note)
 
-    def test_link_include_consumption_defaults_to_true_when_omitted(self):
-        _, ticket = make_order_and_ticket(is_child=False)
+    def test_link_keeps_35_for_adult_purchased_days_before_event(self):
+        event = EventSettings.get_solo()
+        _, ticket = make_order_and_ticket(
+            is_child=False, order_created_at=event.event_date - timedelta(days=5)
+        )
         self.login("checkin1")
         self.client.get("/api/cards/UID1C/")
         response = self.client.post("/api/cards/UID1C/link/", {"ticket_id": ticket.id}, format="json")
         self.assertEqual(response.data["result"], "ok")
         card = Card.objects.get(uid="UID1C")
         self.assertEqual(card.balance, Decimal("35.00"))
+
+    def test_search_flags_tickets_purchased_on_event_day(self):
+        event = EventSettings.get_solo()
+        make_order_and_ticket(participant_name="Compra Antecipada")
+        make_order_and_ticket(participant_name="Compra No Dia", order_created_at=event.event_date)
+        self.login("checkin1")
+        response = self.client.get("/api/cards/search-tickets/?q=Compra")
+        self.assertEqual(response.status_code, 200)
+        by_name = {r["participant_name"]: r["purchased_on_event_day"] for r in response.data}
+        self.assertFalse(by_name["Compra Antecipada"])
+        self.assertTrue(by_name["Compra No Dia"])
 
     def test_link_sets_zero_balance_for_child(self):
         _, ticket = make_order_and_ticket(is_child=True, participant_document="11122233344")
