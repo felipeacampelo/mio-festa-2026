@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.auth import authenticate
 from django.db.models import Q
 from rest_framework import permissions, response, status
@@ -8,11 +10,15 @@ from rest_framework.exceptions import AuthenticationFailed
 from apps.tickets.models import Ticket
 
 from . import services
+from .models import CardTransaction, Product
 from .permissions import IsCheckin, IsRecharge, IsSeller, IsVendor
 from .serializers import (
     CardAmountSerializer,
+    CardCartSerializer,
     CardLinkSerializer,
     CardSerializer,
+    CardTransactionItemSerializer,
+    ProductSerializer,
     TicketSearchResultSerializer,
     VendorLoginSerializer,
 )
@@ -84,21 +90,49 @@ def link_card(request, uid):
     return response.Response(payload)
 
 
+@api_view(["GET"])
+@permission_classes([IsSeller])
+def list_products(request):
+    products = Product.objects.filter(is_active=True)
+    return response.Response(ProductSerializer(products, many=True).data)
+
+
 @api_view(["POST"])
 @permission_classes([IsSeller])
 def debit_card(request, uid):
-    serializer = CardAmountSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    result, card = services.debit_card(
-        uid,
-        serializer.validated_data["amount"],
-        request.user.vendor_profile,
-        serializer.validated_data["idempotency_key"],
-        serializer.validated_data.get("note", ""),
-    )
+    vendor = request.user.vendor_profile
+    if "items" in request.data:
+        serializer = CardCartSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        items = serializer.validated_data["items"]
+        amount = sum((product.price * qty for product, qty in items), Decimal("0.00"))
+        idempotency_key = serializer.validated_data["idempotency_key"]
+        result, card = services.debit_card(
+            uid,
+            amount,
+            vendor,
+            idempotency_key,
+            serializer.validated_data.get("note", ""),
+            items=items,
+        )
+    else:
+        serializer = CardAmountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        idempotency_key = serializer.validated_data["idempotency_key"]
+        result, card = services.debit_card(
+            uid,
+            serializer.validated_data["amount"],
+            vendor,
+            idempotency_key,
+            serializer.validated_data.get("note", ""),
+        )
     payload = {"result": result}
     if card is not None:
         payload["card"] = CardSerializer(card).data
+        if result == "ok":
+            txn = CardTransaction.objects.filter(idempotency_key=idempotency_key).first()
+            if txn is not None and txn.items.exists():
+                payload["items"] = CardTransactionItemSerializer(txn.items.all(), many=True).data
     return response.Response(payload)
 
 

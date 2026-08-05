@@ -5,7 +5,7 @@ from django.utils import timezone
 
 from apps.tickets.models import Ticket
 
-from .models import Card, CardTransaction
+from .models import Card, CardTransaction, CardTransactionItem
 
 LINKABLE_TICKET_STATUSES = [Ticket.Status.ACTIVE, Ticket.Status.USED]
 
@@ -106,7 +106,20 @@ def link_card(uid: str, ticket_id: int):
     return "ok", card
 
 
-def debit_card(uid: str, amount: Decimal, vendor, idempotency_key: str | None, note: str = ""):
+def debit_card(
+    uid: str,
+    amount: Decimal,
+    vendor,
+    idempotency_key: str | None,
+    note: str = "",
+    items: list | None = None,
+):
+    """items: lista opcional de tuplas (Product, quantidade) ja validadas
+    (precos vem do banco, nunca do cliente). Quando presente, as
+    CardTransactionItem sao criadas no MESMO bloco atomic que trava o
+    cartao e grava o CardTransaction - sem chamada separada depois, pra
+    nao abrir janela de corrida entre um replay de idempotencia e a
+    criacao dos itens."""
     uid = normalize_uid(uid)
     if amount is None or amount <= 0:
         return "invalid_amount", None
@@ -139,7 +152,7 @@ def debit_card(uid: str, amount: Decimal, vendor, idempotency_key: str | None, n
 
         card.balance -= amount
         card.save(update_fields=["balance", "updated_at"])
-        CardTransaction.objects.create(
+        txn = CardTransaction.objects.create(
             card=card,
             type=CardTransaction.Type.DEBIT,
             amount=amount,
@@ -148,6 +161,19 @@ def debit_card(uid: str, amount: Decimal, vendor, idempotency_key: str | None, n
             note=note,
             idempotency_key=idempotency_key,
         )
+        if items:
+            CardTransactionItem.objects.bulk_create(
+                [
+                    CardTransactionItem(
+                        transaction=txn,
+                        product=product,
+                        product_name=product.name,
+                        unit_price=product.price,
+                        quantity=qty,
+                    )
+                    for product, qty in items
+                ]
+            )
     return "ok", card
 
 

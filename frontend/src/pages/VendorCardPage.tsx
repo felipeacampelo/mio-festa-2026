@@ -5,10 +5,13 @@ import { useVendorAuth } from "../contexts/VendorAuthContext";
 import {
   Card,
   CardResult,
+  Product,
   TicketSearchResult,
   creditCard,
   debitCard,
+  debitCardCart,
   getCard,
+  getProducts,
   linkCard,
   searchTickets,
 } from "../services/api";
@@ -77,10 +80,37 @@ export default function VendorCardPage() {
   const [justLinkedName, setJustLinkedName] = useState<string | null>(null);
   const idempotencyKeyRef = useRef<string | null>(null);
 
+  const [products, setProducts] = useState<Product[]>([]);
+  const [cart, setCart] = useState<Record<number, number>>({});
+  const [manualMode, setManualMode] = useState(false);
+
   const setAmountForNewAttempt = (value: string) => {
     idempotencyKeyRef.current = null;
     setAmount(value);
   };
+
+  const resetCartAttempt = () => {
+    idempotencyKeyRef.current = null;
+  };
+
+  const changeCartQuantity = (productId: number, delta: number) => {
+    resetCartAttempt();
+    setCart((current) => {
+      const next = { ...current };
+      const qty = (next[productId] || 0) + delta;
+      if (qty <= 0) {
+        delete next[productId];
+      } else {
+        next[productId] = qty;
+      }
+      return next;
+    });
+  };
+
+  const cartTotal = products.reduce((sum, p) => sum + (cart[p.id] || 0) * Number(p.price), 0);
+  const cartEntries = products
+    .filter((p) => cart[p.id] > 0)
+    .map((p) => ({ product: p, quantity: cart[p.id] }));
 
   const loadCard = () => {
     setLoading(true);
@@ -95,6 +125,13 @@ export default function VendorCardPage() {
     loadCard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid]);
+
+  useEffect(() => {
+    if (vendor?.role !== "seller") return;
+    getProducts()
+      .then(setProducts)
+      .catch(() => {});
+  }, [vendor?.role]);
 
   useEffect(() => {
     if (!query.trim()) {
@@ -131,7 +168,7 @@ export default function VendorCardPage() {
     }
   };
 
-  const submitAction = async () => {
+  const submitManualAction = async () => {
     if (!amount || Number(amount) <= 0) return;
     if (!idempotencyKeyRef.current) {
       idempotencyKeyRef.current = crypto.randomUUID();
@@ -146,6 +183,26 @@ export default function VendorCardPage() {
       // Chave preservada de propósito: se a cobrança já tiver sido processada no
       // servidor e só a resposta se perdeu, um retry com chave nova cobraria de novo.
       setError("Erro de comunicação. Toque em cobrar/recarregar de novo para tentar novamente.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const submitCartAction = async () => {
+    if (cartEntries.length === 0) return;
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = crypto.randomUUID();
+    }
+    setError("");
+    setSubmitting(true);
+    try {
+      const items = cartEntries.map((e) => ({ product_id: e.product.id, quantity: e.quantity }));
+      const response = await debitCardCart(uid, items, idempotencyKeyRef.current);
+      setResult(response);
+    } catch {
+      // Mesma logica do valor manual: chave preservada pra nao cobrar duas vezes
+      // se a primeira tentativa ja tiver processado e so a resposta se perdeu.
+      setError("Erro de comunicação. Toque em cobrar de novo para tentar novamente.");
     } finally {
       setSubmitting(false);
     }
@@ -166,6 +223,7 @@ export default function VendorCardPage() {
   if (result) {
     const success = result.result === "ok";
     const actionLabel = vendor?.role === "recharge" ? "Recarga" : "Cobrança";
+    const hasItems = success && result.items && result.items.length > 0;
     return (
       <VendorShell vendor={vendor} onLogout={logout}>
         <div className={`checkin-result ${success ? "checkin-success" : "checkin-fail"}`}>
@@ -174,7 +232,17 @@ export default function VendorCardPage() {
             {success ? `${actionLabel} confirmada` : RESULT_LABELS[result.result] || "Não foi possível concluir"}
           </p>
           {card?.participant_name && <p className="checkin-result-name">{card.participant_name}</p>}
-          {success && <p className="checkin-result-code">{formatMoney(amount)}</p>}
+          {hasItems ? (
+            <div style={{ margin: "0.5rem 0" }}>
+              {result.items!.map((item, i) => (
+                <p key={i} className="checkin-result-code" style={{ margin: "0.15rem 0" }}>
+                  {item.quantity}x {item.product_name} — {formatMoney((Number(item.unit_price) * item.quantity).toFixed(2))}
+                </p>
+              ))}
+            </div>
+          ) : (
+            success && <p className="checkin-result-code">{formatMoney(amount)}</p>
+          )}
           {result.card && <p className="checkin-result-reason">Saldo atual: {formatMoney(result.card.balance)}</p>}
           <button className="button checkin-next-btn" onClick={goToNextCard}>
             Próximo
@@ -291,31 +359,115 @@ export default function VendorCardPage() {
   }
 
   const isRecharge = vendor?.role === "recharge";
+  const showManualForm = isRecharge || manualMode;
+
+  if (showManualForm) {
+    return (
+      <VendorShell vendor={vendor} onLogout={logout}>
+        <div className="card">
+          <h2>{card.participant_name}</h2>
+          <p style={{ fontSize: "1.5rem", fontWeight: 700 }}>{formatMoney(card.balance)}</p>
+          <div className="stack-form">
+            <div className="field">
+              <label htmlFor="amount">Valor {isRecharge ? "a recarregar" : "da compra"}</label>
+              <input
+                id="amount"
+                type="text"
+                inputMode="decimal"
+                placeholder="0,00"
+                value={amount}
+                onChange={(e) => setAmountForNewAttempt(e.target.value.replace(",", "."))}
+                autoFocus
+              />
+            </div>
+            <button
+              className="button button-primary"
+              disabled={!amount || Number(amount) <= 0 || submitting}
+              onClick={submitManualAction}
+            >
+              {submitting ? <><SpinnerIcon /> Processando…</> : isRecharge ? "Adicionar saldo" : "Cobrar"}
+            </button>
+            {!isRecharge && (
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => {
+                  setManualMode(false);
+                  setAmountForNewAttempt("");
+                }}
+              >
+                Voltar pro carrinho
+              </button>
+            )}
+          </div>
+          {error && <div className="error-box" role="alert">{error}</div>}
+        </div>
+      </VendorShell>
+    );
+  }
 
   return (
     <VendorShell vendor={vendor} onLogout={logout}>
       <div className="card">
         <h2>{card.participant_name}</h2>
         <p style={{ fontSize: "1.5rem", fontWeight: 700 }}>{formatMoney(card.balance)}</p>
+
+        {products.length === 0 && <p>Nenhum produto cadastrado ainda.</p>}
         <div className="stack-form">
-          <div className="field">
-            <label htmlFor="amount">Valor {isRecharge ? "a recarregar" : "da compra"}</label>
-            <input
-              id="amount"
-              type="text"
-              inputMode="decimal"
-              placeholder="0,00"
-              value={amount}
-              onChange={(e) => setAmountForNewAttempt(e.target.value.replace(",", "."))}
-              autoFocus
-            />
-          </div>
+          {products.map((p) => {
+            const qty = cart[p.id] || 0;
+            return (
+              <div
+                key={p.id}
+                className="card"
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+              >
+                <div>
+                  <strong>{p.name}</strong>
+                  <div style={{ fontSize: "0.85rem", opacity: 0.75 }}>{formatMoney(p.price)}</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <button
+                    className="button button-secondary"
+                    disabled={qty === 0}
+                    onClick={() => changeCartQuantity(p.id, -1)}
+                  >
+                    −
+                  </button>
+                  <span style={{ minWidth: "1.5rem", textAlign: "center" }}>{qty}</span>
+                  <button className="button button-secondary" onClick={() => changeCartQuantity(p.id, 1)}>
+                    +
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            margin: "1rem 0",
+            fontSize: "1.25rem",
+            fontWeight: 700,
+          }}
+        >
+          <span>Total</span>
+          <span>{formatMoney(cartTotal.toFixed(2))}</span>
+        </div>
+
+        <div className="stack-form">
           <button
             className="button button-primary"
-            disabled={!amount || Number(amount) <= 0 || submitting}
-            onClick={submitAction}
+            disabled={cartEntries.length === 0 || submitting}
+            onClick={submitCartAction}
           >
-            {submitting ? <><SpinnerIcon /> Processando…</> : isRecharge ? "Adicionar saldo" : "Cobrar"}
+            {submitting ? <><SpinnerIcon /> Processando…</> : "Cobrar"}
+          </button>
+          <button className="button button-secondary" type="button" onClick={() => setManualMode(true)}>
+            Cobrar valor avulso
           </button>
         </div>
         {error && <div className="error-box" role="alert">{error}</div>}

@@ -91,6 +91,16 @@ export default function AdminCardsPage() {
                 </div>
               ))}
             </div>
+            <div className="card">
+              <h2>Vendas por vendedor</h2>
+              {reconciliation.sold_by_vendor.length === 0 && <p>Nenhuma venda registrada ainda.</p>}
+              {reconciliation.sold_by_vendor.map((row) => (
+                <div key={row.vendor_id ?? "sem-vendedor"} style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>{row.vendor__display_name || "Sem vendedor"}</span>
+                  <strong>{formatCurrency(row.total)}</strong>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

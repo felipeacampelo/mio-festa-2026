@@ -231,6 +231,12 @@ export type Card = {
   is_child: boolean | null;
 };
 
+export type CardTransactionItem = {
+  product_name: string;
+  unit_price: string;
+  quantity: number;
+};
+
 export type CardResult = {
   result:
     | "ok"
@@ -245,6 +251,7 @@ export type CardResult = {
     | "card_not_found"
     | "invalid_amount";
   card?: Card;
+  items?: CardTransactionItem[];
 };
 
 export type TicketSearchResult = {
@@ -270,9 +277,21 @@ export type AdminCard = {
 
 export type CardReconciliation = {
   recharge_by_vendor: Array<{ vendor_id: number | null; vendor__display_name: string | null; total: string }>;
+  sold_by_vendor: Array<{ vendor_id: number | null; vendor__display_name: string | null; total: string }>;
   outstanding_balance: string;
   status_counts: Record<string, number>;
 };
+
+export type Product = {
+  id: number;
+  name: string;
+  price: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CartItem = { product_id: number; quantity: number };
 
 export async function vendorLogin(username: string, password: string) {
   const response = await vendorApi.post<{ token: string; vendor: Vendor }>("/cards/login/", { username, password });
@@ -304,6 +323,20 @@ export async function linkCard(uid: string, ticketId: number) {
 export async function debitCard(uid: string, amount: string, idempotencyKey: string, note?: string) {
   const response = await vendorApi.post<CardResult>(`/cards/${encodeURIComponent(uid)}/debit/`, {
     amount,
+    idempotency_key: idempotencyKey,
+    note,
+  });
+  return response.data;
+}
+
+export async function getProducts() {
+  const response = await vendorApi.get<Product[]>("/cards/products/");
+  return response.data;
+}
+
+export async function debitCardCart(uid: string, items: CartItem[], idempotencyKey: string, note?: string) {
+  const response = await vendorApi.post<CardResult>(`/cards/${encodeURIComponent(uid)}/debit/`, {
+    items,
     idempotency_key: idempotencyKey,
     note,
   });
@@ -344,4 +377,25 @@ export async function unblockCard(uid: string) {
 export async function returnCard(uid: string) {
   const response = await api.post<AdminCard>(`/admin/cards/${encodeURIComponent(uid)}/return/`);
   return response.data;
+}
+
+export async function getAdminProducts(search = "", page = 1, pageSize = 50) {
+  const response = await api.get<PaginatedResponse<Product>>("/admin/products/", {
+    params: { search, page, page_size: pageSize },
+  });
+  return response.data;
+}
+
+export async function createProduct(data: { name: string; price: string }) {
+  const response = await api.post<Product>("/admin/products/", data);
+  return response.data;
+}
+
+export async function updateProduct(id: number, data: Partial<{ name: string; price: string; is_active: boolean }>) {
+  const response = await api.patch<Product>(`/admin/products/${id}/`, data);
+  return response.data;
+}
+
+export async function deleteProduct(id: number) {
+  await api.delete(`/admin/products/${id}/`);
 }

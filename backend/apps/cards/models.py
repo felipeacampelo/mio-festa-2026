@@ -68,3 +68,32 @@ class CardTransaction(models.Model):
 
     def __str__(self) -> str:
         return f"{self.card_id} - {self.type}"
+
+
+class Product(models.Model):
+    name = models.CharField(max_length=120)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class CardTransactionItem(models.Model):
+    transaction = models.ForeignKey(CardTransaction, on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey(Product, null=True, blank=True, on_delete=models.SET_NULL)
+    product_name = models.CharField(max_length=120)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    quantity = models.PositiveIntegerField()
+
+    def __str__(self) -> str:
+        return f"{self.quantity}x {self.product_name}"
+
+    @property
+    def subtotal(self):
+        return self.unit_price * self.quantity

@@ -1,11 +1,21 @@
 from django.urls import path
 
-from .views import credit_card, debit_card, get_card, link_card, search_tickets, vendor_login, vendor_me
+from .views import (
+    credit_card,
+    debit_card,
+    get_card,
+    link_card,
+    list_products,
+    search_tickets,
+    vendor_login,
+    vendor_me,
+)
 
 urlpatterns = [
     path("login/", vendor_login, name="vendor-login"),
     path("me/", vendor_me, name="vendor-me"),
     path("search-tickets/", search_tickets, name="cards-search-tickets"),
+    path("products/", list_products, name="cards-products"),
     path("<str:uid>/", get_card, name="cards-detail"),
     path("<str:uid>/link/", link_card, name="cards-link"),
     path("<str:uid>/debit/", debit_card, name="cards-debit"),

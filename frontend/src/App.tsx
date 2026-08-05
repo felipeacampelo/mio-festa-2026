@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { VendorAuthProvider } from "./contexts/VendorAuthContext";
 import AdminCardsPage from "./pages/AdminCardsPage";
+import AdminProductsPage from "./pages/AdminProductsPage";
 import AdminCheckinPage from "./pages/AdminCheckinPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminEventPage from "./pages/AdminEventPage";
@@ -63,6 +64,14 @@ export default function App() {
           element={
             <PrivateRoute>
               <AdminCardsPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/produtos"
+          element={
+            <PrivateRoute>
+              <AdminProductsPage />
             </PrivateRoute>
           }
         />

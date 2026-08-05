@@ -6,8 +6,8 @@ from rest_framework.decorators import api_view, permission_classes
 from apps.tickets.admin_views import paginate_queryset
 
 from . import services
-from .models import Card, CardTransaction
-from .serializers import AdminCardListSerializer
+from .models import Card, CardTransaction, CardTransactionItem, Product
+from .serializers import AdminCardListSerializer, ProductSerializer
 
 
 @api_view(["GET"])
@@ -33,6 +33,12 @@ def admin_card_reconciliation(request):
         .annotate(total=Sum("amount"))
         .order_by("-total")
     )
+    sold_by_vendor = list(
+        CardTransaction.objects.filter(type=CardTransaction.Type.DEBIT)
+        .values("vendor_id", "vendor__display_name")
+        .annotate(total=Sum("amount"))
+        .order_by("-total")
+    )
     outstanding = (
         Card.objects.filter(status__in=[Card.Status.ACTIVE, Card.Status.BLOCKED]).aggregate(total=Sum("balance"))[
             "total"
@@ -45,6 +51,7 @@ def admin_card_reconciliation(request):
     return response.Response(
         {
             "recharge_by_vendor": by_vendor,
+            "sold_by_vendor": sold_by_vendor,
             "outstanding_balance": outstanding,
             "status_counts": status_counts,
         }
@@ -73,3 +80,38 @@ def admin_return_card(request, uid):
     card = get_object_or_404(Card, uid=services.normalize_uid(uid))
     services.return_card(card, note=request.data.get("note", ""))
     return response.Response(AdminCardListSerializer(card).data)
+
+
+@api_view(["GET", "POST"])
+@permission_classes([permissions.IsAdminUser])
+def admin_product_list(request):
+    if request.method == "POST":
+        serializer = ProductSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return response.Response(serializer.data, status=201)
+
+    query = request.query_params.get("search", "").strip()
+    products = Product.objects.order_by("name")
+    if query:
+        products = products.filter(name__icontains=query)
+    return paginate_queryset(request, products, ProductSerializer)
+
+
+@api_view(["PATCH", "DELETE"])
+@permission_classes([permissions.IsAdminUser])
+def admin_product_detail(request, pk):
+    product = get_object_or_404(Product, pk=pk)
+    if request.method == "DELETE":
+        if CardTransactionItem.objects.filter(product=product).exists():
+            return response.Response(
+                {"detail": "Produto ja foi usado em vendas. Desative em vez de excluir."},
+                status=400,
+            )
+        product.delete()
+        return response.Response(status=204)
+
+    serializer = ProductSerializer(product, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return response.Response(serializer.data)

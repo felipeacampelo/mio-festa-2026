@@ -8,7 +8,7 @@ from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.cards.models import Card, CardTransaction, Vendor
+from apps.cards.models import Card, CardTransaction, CardTransactionItem, Product, Vendor
 from apps.events.models import EventSettings
 from apps.orders.models import Order
 from apps.tickets.models import Ticket
@@ -51,6 +51,10 @@ def make_vendor(username, role, is_active=True):
     User = get_user_model()
     user = User.objects.create_user(username=username, password="senha123", is_staff=False)
     return Vendor.objects.create(user=user, role=role, display_name=username, is_active=is_active)
+
+
+def make_product(name="Agua", price=Decimal("5.00"), is_active=True):
+    return Product.objects.create(name=name, price=price, is_active=is_active)
 
 
 class CardsApiTestCase(TestCase):
@@ -452,6 +456,264 @@ class AdminCardReportingTests(CardsApiTestCase):
         self.assertEqual(response.data["status"], "blocked")
         response = self.client.post("/api/admin/cards/BLK1/unblock/", {}, format="json")
         self.assertEqual(response.data["status"], "active")
+
+    def test_reconciliation_sold_by_vendor_matches_debit_sum_and_excludes_failed(self):
+        _, ticket1 = make_order_and_ticket(participant_name="A")
+        _, ticket2 = make_order_and_ticket(participant_name="B")
+        card1 = Card.objects.create(uid="S1", ticket=ticket1, balance=Decimal("50.00"))
+        card2 = Card.objects.create(uid="S2", ticket=ticket2, balance=Decimal("2.00"))
+        CardTransaction.objects.create(
+            card=card1, type=CardTransaction.Type.DEBIT, amount=Decimal("20.00"),
+            balance_after=Decimal("30.00"), vendor=self.seller,
+        )
+        CardTransaction.objects.create(
+            card=card2, type=CardTransaction.Type.DEBIT, amount=Decimal("2.00"),
+            balance_after=Decimal("0.00"), vendor=self.seller,
+        )
+        # Falha de saldo insuficiente nao deve entrar na soma.
+        CardTransaction.objects.create(
+            card=card2, type=CardTransaction.Type.DEBIT_FAILED, amount=Decimal("100.00"),
+            balance_after=Decimal("0.00"), vendor=self.seller,
+        )
+        self.admin_login()
+        response = self.client.get("/api/admin/cards/reconciliation/")
+        self.assertEqual(Decimal(response.data["sold_by_vendor"][0]["total"]), Decimal("22.00"))
+
+
+class ProductAdminTests(CardsApiTestCase):
+    def setUp(self):
+        super().setUp()
+        User = get_user_model()
+        self.admin_user = User.objects.create_user(username="admin1", password="senha123", is_staff=True)
+
+    def admin_login(self):
+        response = self.client.post(
+            "/api/auth/login/", {"username": "admin1", "password": "senha123"}, format="json"
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {response.data['token']}")
+
+    def test_admin_can_create_product(self):
+        self.admin_login()
+        response = self.client.post(
+            "/api/admin/products/", {"name": "Refrigerante", "price": "6.00"}, format="json"
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(Product.objects.filter(name="Refrigerante", price=Decimal("6.00")).exists())
+
+    def test_admin_can_update_product_price(self):
+        product = make_product(name="Agua", price=Decimal("5.00"))
+        self.admin_login()
+        response = self.client.patch(f"/api/admin/products/{product.id}/", {"price": "7.00"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        product.refresh_from_db()
+        self.assertEqual(product.price, Decimal("7.00"))
+
+    def test_admin_can_deactivate_product(self):
+        product = make_product()
+        self.admin_login()
+        response = self.client.patch(f"/api/admin/products/{product.id}/", {"is_active": False}, format="json")
+        self.assertEqual(response.status_code, 200)
+        product.refresh_from_db()
+        self.assertFalse(product.is_active)
+
+    def test_non_admin_cannot_create_product(self):
+        self.login("vendedor1")
+        response = self.client.post(
+            "/api/admin/products/", {"name": "Refrigerante", "price": "6.00"}, format="json"
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_delete_unused_product_succeeds(self):
+        product = make_product()
+        self.admin_login()
+        response = self.client.delete(f"/api/admin/products/{product.id}/")
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Product.objects.filter(id=product.id).exists())
+
+    def test_delete_used_product_is_rejected(self):
+        product = make_product()
+        _, ticket = make_order_and_ticket()
+        card = Card.objects.create(uid="USEDP1", ticket=ticket, balance=Decimal("50.00"))
+        txn = CardTransaction.objects.create(
+            card=card, type=CardTransaction.Type.DEBIT, amount=Decimal("5.00"),
+            balance_after=Decimal("45.00"), vendor=self.seller,
+        )
+        CardTransactionItem.objects.create(
+            transaction=txn, product=product, product_name=product.name,
+            unit_price=product.price, quantity=1,
+        )
+        self.admin_login()
+        response = self.client.delete(f"/api/admin/products/{product.id}/")
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(Product.objects.filter(id=product.id).exists())
+
+
+class ProductListTests(CardsApiTestCase):
+    def test_seller_lists_only_active_products(self):
+        make_product(name="Ativo", is_active=True)
+        make_product(name="Inativo", is_active=False)
+        self.login("vendedor1")
+        response = self.client.get("/api/cards/products/")
+        self.assertEqual(response.status_code, 200)
+        names = [p["name"] for p in response.data]
+        self.assertIn("Ativo", names)
+        self.assertNotIn("Inativo", names)
+
+    def test_products_endpoint_requires_vendor_auth(self):
+        response = self.client.get("/api/cards/products/")
+        self.assertEqual(response.status_code, 401)
+
+
+class CartDebitTests(CardsApiTestCase):
+    def _linked_card(self, uid="CART1", balance=Decimal("100.00")):
+        _, ticket = make_order_and_ticket()
+        return Card.objects.create(uid=uid, ticket=ticket, balance=balance)
+
+    def test_cart_debit_computes_total_from_db_prices(self):
+        card = self._linked_card()
+        agua = make_product(name="Agua", price=Decimal("5.00"))
+        cerveja = make_product(name="Cerveja", price=Decimal("12.00"))
+        self.login("vendedor1")
+        response = self.client.post(
+            f"/api/cards/{card.uid}/debit/",
+            {
+                "items": [
+                    {"product_id": agua.id, "quantity": 2},
+                    {"product_id": cerveja.id, "quantity": 1},
+                ],
+                "idempotency_key": "cart-1",
+            },
+            format="json",
+        )
+        self.assertEqual(response.data["result"], "ok")
+        # 2*5 + 1*12 = 22, ignorando qualquer preco que o cliente pudesse mandar.
+        self.assertEqual(Decimal(response.data["card"]["balance"]), Decimal("78.00"))
+        txn = CardTransaction.objects.get(idempotency_key="cart-1")
+        self.assertEqual(txn.amount, Decimal("22.00"))
+        self.assertEqual(txn.items.count(), 2)
+
+    def test_cart_debit_ignores_client_supplied_price(self):
+        card = self._linked_card()
+        product = make_product(name="Agua", price=Decimal("5.00"))
+        self.login("vendedor1")
+        response = self.client.post(
+            f"/api/cards/{card.uid}/debit/",
+            {
+                "items": [{"product_id": product.id, "quantity": 1, "price": "0.01", "unit_price": "0.01"}],
+                "idempotency_key": "cart-2",
+            },
+            format="json",
+        )
+        self.assertEqual(response.data["result"], "ok")
+        self.assertEqual(Decimal(response.data["card"]["balance"]), Decimal("95.00"))
+
+    def test_cart_debit_creates_item_rows_with_snapshot(self):
+        card = self._linked_card()
+        product = make_product(name="Espetinho", price=Decimal("15.00"))
+        self.login("vendedor1")
+        self.client.post(
+            f"/api/cards/{card.uid}/debit/",
+            {"items": [{"product_id": product.id, "quantity": 3}], "idempotency_key": "cart-3"},
+            format="json",
+        )
+        item = CardTransactionItem.objects.get(transaction__idempotency_key="cart-3")
+        self.assertEqual(item.product_name, "Espetinho")
+        self.assertEqual(item.unit_price, Decimal("15.00"))
+        self.assertEqual(item.quantity, 3)
+
+    def test_cart_debit_after_price_change_keeps_old_snapshot(self):
+        card = self._linked_card()
+        product = make_product(name="Agua", price=Decimal("5.00"))
+        self.login("vendedor1")
+        self.client.post(
+            f"/api/cards/{card.uid}/debit/",
+            {"items": [{"product_id": product.id, "quantity": 1}], "idempotency_key": "cart-4"},
+            format="json",
+        )
+        product.price = Decimal("9.00")
+        product.save()
+        item = CardTransactionItem.objects.get(transaction__idempotency_key="cart-4")
+        self.assertEqual(item.unit_price, Decimal("5.00"))
+
+    def test_cart_debit_rejects_empty_items(self):
+        card = self._linked_card()
+        self.login("vendedor1")
+        response = self.client.post(
+            f"/api/cards/{card.uid}/debit/",
+            {"items": [], "idempotency_key": "cart-5"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_cart_debit_rejects_zero_quantity(self):
+        card = self._linked_card()
+        product = make_product()
+        self.login("vendedor1")
+        response = self.client.post(
+            f"/api/cards/{card.uid}/debit/",
+            {"items": [{"product_id": product.id, "quantity": 0}], "idempotency_key": "cart-6"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_cart_debit_rejects_inactive_product(self):
+        card = self._linked_card()
+        product = make_product(is_active=False)
+        self.login("vendedor1")
+        response = self.client.post(
+            f"/api/cards/{card.uid}/debit/",
+            {"items": [{"product_id": product.id, "quantity": 1}], "idempotency_key": "cart-7"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_cart_debit_rejects_nonexistent_product(self):
+        card = self._linked_card()
+        self.login("vendedor1")
+        response = self.client.post(
+            f"/api/cards/{card.uid}/debit/",
+            {"items": [{"product_id": 999999, "quantity": 1}], "idempotency_key": "cart-8"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_cart_debit_insufficient_balance_creates_no_items(self):
+        card = self._linked_card(balance=Decimal("2.00"))
+        product = make_product(name="Espetinho", price=Decimal("15.00"))
+        self.login("vendedor1")
+        response = self.client.post(
+            f"/api/cards/{card.uid}/debit/",
+            {"items": [{"product_id": product.id, "quantity": 1}], "idempotency_key": "cart-9"},
+            format="json",
+        )
+        self.assertEqual(response.data["result"], "insufficient_balance")
+        self.assertEqual(CardTransactionItem.objects.count(), 0)
+        card.refresh_from_db()
+        self.assertEqual(card.balance, Decimal("2.00"))
+
+    def test_cart_debit_idempotency_replay_does_not_duplicate_items(self):
+        card = self._linked_card()
+        product = make_product(name="Agua", price=Decimal("5.00"))
+        self.login("vendedor1")
+        payload = {"items": [{"product_id": product.id, "quantity": 2}], "idempotency_key": "cart-10"}
+        self.client.post(f"/api/cards/{card.uid}/debit/", payload, format="json")
+        self.client.post(f"/api/cards/{card.uid}/debit/", payload, format="json")
+        card.refresh_from_db()
+        self.assertEqual(card.balance, Decimal("90.00"))
+        self.assertEqual(CardTransaction.objects.filter(idempotency_key="cart-10").count(), 1)
+        self.assertEqual(CardTransactionItem.objects.filter(transaction__idempotency_key="cart-10").count(), 1)
+
+    def test_manual_amount_debit_still_works_without_items(self):
+        card = self._linked_card()
+        self.login("vendedor1")
+        response = self.client.post(
+            f"/api/cards/{card.uid}/debit/",
+            {"amount": "9.90", "idempotency_key": "cart-11"},
+            format="json",
+        )
+        self.assertEqual(response.data["result"], "ok")
+        self.assertEqual(Decimal(response.data["card"]["balance"]), Decimal("90.10"))
+        self.assertNotIn("items", response.data)
 
 
 class CardDebitConcurrencyTests(TransactionTestCase):

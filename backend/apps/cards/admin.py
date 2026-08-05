@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Card, CardTransaction, Vendor
+from .models import Card, CardTransaction, CardTransactionItem, Product, Vendor
 
 
 @admin.register(Vendor)
@@ -22,3 +22,16 @@ class CardTransactionAdmin(admin.ModelAdmin):
     list_display = ["card", "type", "amount", "balance_after", "vendor", "created_at"]
     list_filter = ["type"]
     search_fields = ["card__uid", "idempotency_key"]
+
+
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ["name", "price", "is_active", "updated_at"]
+    list_filter = ["is_active"]
+    search_fields = ["name"]
+
+
+@admin.register(CardTransactionItem)
+class CardTransactionItemAdmin(admin.ModelAdmin):
+    list_display = ["transaction", "product_name", "unit_price", "quantity"]
+    search_fields = ["product_name", "transaction__card__uid"]
