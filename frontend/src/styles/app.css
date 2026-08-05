@@ -1164,7 +1164,8 @@ button, input, textarea, select { font-family: var(--font-body); }
 .optional { font-weight: 400; color: var(--text-ghost); font-size: 0.78rem; margin-left: 3px; }
 
 .field input,
-.field textarea {
+.field textarea,
+.field select {
   width: 100%;
   padding: 0.82rem 1rem;
   border: 1.5px solid var(--border-strong);
@@ -1179,7 +1180,8 @@ button, input, textarea, select { font-family: var(--font-body); }
 }
 
 .field input:focus,
-.field textarea:focus {
+.field textarea:focus,
+.field select:focus {
   border-color: var(--brand);
   box-shadow: 0 0 0 3px rgba(200, 90, 20, 0.13);
 }

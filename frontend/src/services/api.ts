@@ -284,11 +284,19 @@ export type CardReconciliation = {
 
 export type Product = {
   id: number;
+  vendor: number;
+  vendor_name: string;
   name: string;
   price: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+};
+
+export type SellerOption = {
+  id: number;
+  display_name: string;
+  is_active: boolean;
 };
 
 export type CartItem = { product_id: number; quantity: number };
@@ -386,12 +394,20 @@ export async function getAdminProducts(search = "", page = 1, pageSize = 50) {
   return response.data;
 }
 
-export async function createProduct(data: { name: string; price: string }) {
+export async function getAdminSellers() {
+  const response = await api.get<SellerOption[]>("/admin/cards/sellers/");
+  return response.data;
+}
+
+export async function createProduct(data: { name: string; price: string; vendor: number }) {
   const response = await api.post<Product>("/admin/products/", data);
   return response.data;
 }
 
-export async function updateProduct(id: number, data: Partial<{ name: string; price: string; is_active: boolean }>) {
+export async function updateProduct(
+  id: number,
+  data: Partial<{ name: string; price: string; is_active: boolean; vendor: number }>,
+) {
   const response = await api.patch<Product>(`/admin/products/${id}/`, data);
   return response.data;
 }

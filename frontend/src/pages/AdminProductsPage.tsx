@@ -1,6 +1,14 @@
 import { FormEvent, useEffect, useState } from "react";
 import AdminShell from "../components/AdminShell";
-import { Product, createProduct, deleteProduct, getAdminProducts, updateProduct } from "../services/api";
+import {
+  Product,
+  SellerOption,
+  createProduct,
+  deleteProduct,
+  getAdminProducts,
+  getAdminSellers,
+  updateProduct,
+} from "../services/api";
 
 function formatCurrency(value: string | number) {
   return Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -8,6 +16,7 @@ function formatCurrency(value: string | number) {
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [sellers, setSellers] = useState<SellerOption[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -15,6 +24,7 @@ export default function AdminProductsPage() {
 
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
+  const [vendorId, setVendorId] = useState<string>("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -27,6 +37,12 @@ export default function AdminProductsPage() {
   };
 
   useEffect(() => {
+    getAdminSellers()
+      .then(setSellers)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     const handle = setTimeout(load, 300);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -35,6 +51,7 @@ export default function AdminProductsPage() {
   const resetForm = () => {
     setName("");
     setPrice("");
+    setVendorId("");
     setEditingId(null);
   };
 
@@ -42,18 +59,19 @@ export default function AdminProductsPage() {
     setEditingId(product.id);
     setName(product.name);
     setPrice(product.price);
+    setVendorId(String(product.vendor));
   };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !price) return;
+    if (!name.trim() || !price || !vendorId) return;
     setSaving(true);
     setError("");
     try {
       if (editingId) {
-        await updateProduct(editingId, { name: name.trim(), price });
+        await updateProduct(editingId, { name: name.trim(), price, vendor: Number(vendorId) });
       } else {
-        await createProduct({ name: name.trim(), price });
+        await createProduct({ name: name.trim(), price, vendor: Number(vendorId) });
       }
       resetForm();
       load();
@@ -99,6 +117,17 @@ export default function AdminProductsPage() {
           <h2>{editingId ? "Editar produto" : "Novo produto"}</h2>
           <form className="stack-form" onSubmit={submit}>
             <div className="field">
+              <label htmlFor="productVendor">Vendedor</label>
+              <select id="productVendor" value={vendorId} onChange={(e) => setVendorId(e.target.value)}>
+                <option value="">Selecione…</option>
+                {sellers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.display_name}{!s.is_active ? " (inativo)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
               <label htmlFor="productName">Nome</label>
               <input
                 id="productName"
@@ -120,7 +149,11 @@ export default function AdminProductsPage() {
               />
             </div>
             <div style={{ display: "flex", gap: "0.5rem" }}>
-              <button className="button button-primary" type="submit" disabled={saving || !name.trim() || !price}>
+              <button
+                className="button button-primary"
+                type="submit"
+                disabled={saving || !name.trim() || !price || !vendorId}
+              >
                 {saving ? "Salvando…" : editingId ? "Salvar alterações" : "Adicionar produto"}
               </button>
               {editingId && (
@@ -137,7 +170,7 @@ export default function AdminProductsPage() {
         <div className="field" style={{ maxWidth: "320px", marginBottom: "1rem" }}>
           <input
             type="text"
-            placeholder="Buscar por nome…"
+            placeholder="Buscar por nome ou vendedor…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -148,6 +181,7 @@ export default function AdminProductsPage() {
             <thead>
               <tr>
                 <th>Nome</th>
+                <th>Vendedor</th>
                 <th>Preço</th>
                 <th>Status</th>
                 <th></th>
@@ -155,14 +189,15 @@ export default function AdminProductsPage() {
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={4}>Carregando…</td></tr>
+                <tr><td colSpan={5}>Carregando…</td></tr>
               )}
               {!loading && products.length === 0 && (
-                <tr><td colSpan={4}>Nenhum produto cadastrado.</td></tr>
+                <tr><td colSpan={5}>Nenhum produto cadastrado.</td></tr>
               )}
               {!loading && products.map((p) => (
                 <tr key={p.id}>
                   <td>{p.name}</td>
+                  <td>{p.vendor_name}</td>
                   <td>{formatCurrency(p.price)}</td>
                   <td>
                     <span className={`status-badge ${p.is_active ? "paid" : "used"}`}>

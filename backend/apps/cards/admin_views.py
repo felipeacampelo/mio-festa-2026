@@ -6,8 +6,8 @@ from rest_framework.decorators import api_view, permission_classes
 from apps.tickets.admin_views import paginate_queryset
 
 from . import services
-from .models import Card, CardTransaction, CardTransactionItem, Product
-from .serializers import AdminCardListSerializer, ProductSerializer
+from .models import Card, CardTransaction, CardTransactionItem, Product, Vendor
+from .serializers import AdminCardListSerializer, ProductSerializer, VendorOptionSerializer
 
 
 @api_view(["GET"])
@@ -82,6 +82,13 @@ def admin_return_card(request, uid):
     return response.Response(AdminCardListSerializer(card).data)
 
 
+@api_view(["GET"])
+@permission_classes([permissions.IsAdminUser])
+def admin_seller_list(request):
+    sellers = Vendor.objects.filter(role=Vendor.Role.SELLER).order_by("display_name")
+    return response.Response(VendorOptionSerializer(sellers, many=True).data)
+
+
 @api_view(["GET", "POST"])
 @permission_classes([permissions.IsAdminUser])
 def admin_product_list(request):
@@ -92,9 +99,12 @@ def admin_product_list(request):
         return response.Response(serializer.data, status=201)
 
     query = request.query_params.get("search", "").strip()
-    products = Product.objects.order_by("name")
+    products = Product.objects.select_related("vendor").order_by("vendor__display_name", "name")
     if query:
-        products = products.filter(name__icontains=query)
+        products = products.filter(Q(name__icontains=query) | Q(vendor__display_name__icontains=query))
+    vendor_id = request.query_params.get("vendor", "").strip()
+    if vendor_id:
+        products = products.filter(vendor_id=vendor_id)
     return paginate_queryset(request, products, ProductSerializer)
 
 

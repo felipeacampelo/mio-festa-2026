@@ -5,11 +5,13 @@ from .admin_views import (
     admin_card_list,
     admin_card_reconciliation,
     admin_return_card,
+    admin_seller_list,
     admin_unblock_card,
 )
 
 urlpatterns = [
     path("", admin_card_list, name="admin-cards-list"),
+    path("sellers/", admin_seller_list, name="admin-sellers-list"),
     path("reconciliation/", admin_card_reconciliation, name="admin-cards-reconciliation"),
     path("<str:uid>/block/", admin_block_card, name="admin-cards-block"),
     path("<str:uid>/unblock/", admin_unblock_card, name="admin-cards-unblock"),

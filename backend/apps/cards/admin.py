@@ -26,9 +26,9 @@ class CardTransactionAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ["name", "price", "is_active", "updated_at"]
-    list_filter = ["is_active"]
-    search_fields = ["name"]
+    list_display = ["name", "vendor", "price", "is_active", "updated_at"]
+    list_filter = ["is_active", "vendor"]
+    search_fields = ["name", "vendor__display_name"]
 
 
 @admin.register(CardTransactionItem)

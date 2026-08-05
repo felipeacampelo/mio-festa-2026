@@ -53,8 +53,8 @@ def make_vendor(username, role, is_active=True):
     return Vendor.objects.create(user=user, role=role, display_name=username, is_active=is_active)
 
 
-def make_product(name="Agua", price=Decimal("5.00"), is_active=True):
-    return Product.objects.create(name=name, price=price, is_active=is_active)
+def make_product(vendor, name="Agua", price=Decimal("5.00"), is_active=True):
+    return Product.objects.create(vendor=vendor, name=name, price=price, is_active=is_active)
 
 
 class CardsApiTestCase(TestCase):
@@ -495,13 +495,24 @@ class ProductAdminTests(CardsApiTestCase):
     def test_admin_can_create_product(self):
         self.admin_login()
         response = self.client.post(
-            "/api/admin/products/", {"name": "Refrigerante", "price": "6.00"}, format="json"
+            "/api/admin/products/",
+            {"name": "Refrigerante", "price": "6.00", "vendor": self.seller.id},
+            format="json",
         )
         self.assertEqual(response.status_code, 201)
         self.assertTrue(Product.objects.filter(name="Refrigerante", price=Decimal("6.00")).exists())
 
+    def test_admin_cannot_create_product_for_non_seller_vendor(self):
+        self.admin_login()
+        response = self.client.post(
+            "/api/admin/products/",
+            {"name": "Refrigerante", "price": "6.00", "vendor": self.recharge.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
     def test_admin_can_update_product_price(self):
-        product = make_product(name="Agua", price=Decimal("5.00"))
+        product = make_product(self.seller, name="Agua", price=Decimal("5.00"))
         self.admin_login()
         response = self.client.patch(f"/api/admin/products/{product.id}/", {"price": "7.00"}, format="json")
         self.assertEqual(response.status_code, 200)
@@ -509,7 +520,7 @@ class ProductAdminTests(CardsApiTestCase):
         self.assertEqual(product.price, Decimal("7.00"))
 
     def test_admin_can_deactivate_product(self):
-        product = make_product()
+        product = make_product(self.seller)
         self.admin_login()
         response = self.client.patch(f"/api/admin/products/{product.id}/", {"is_active": False}, format="json")
         self.assertEqual(response.status_code, 200)
@@ -524,14 +535,14 @@ class ProductAdminTests(CardsApiTestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_delete_unused_product_succeeds(self):
-        product = make_product()
+        product = make_product(self.seller)
         self.admin_login()
         response = self.client.delete(f"/api/admin/products/{product.id}/")
         self.assertEqual(response.status_code, 204)
         self.assertFalse(Product.objects.filter(id=product.id).exists())
 
     def test_delete_used_product_is_rejected(self):
-        product = make_product()
+        product = make_product(self.seller)
         _, ticket = make_order_and_ticket()
         card = Card.objects.create(uid="USEDP1", ticket=ticket, balance=Decimal("50.00"))
         txn = CardTransaction.objects.create(
@@ -547,11 +558,20 @@ class ProductAdminTests(CardsApiTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertTrue(Product.objects.filter(id=product.id).exists())
 
+    def test_admin_can_list_sellers_for_product_form(self):
+        self.admin_login()
+        response = self.client.get("/api/admin/cards/sellers/")
+        self.assertEqual(response.status_code, 200)
+        names = [v["display_name"] for v in response.data]
+        self.assertIn("vendedor1", names)
+        self.assertNotIn("caixa1", names)
+        self.assertNotIn("checkin1", names)
+
 
 class ProductListTests(CardsApiTestCase):
     def test_seller_lists_only_active_products(self):
-        make_product(name="Ativo", is_active=True)
-        make_product(name="Inativo", is_active=False)
+        make_product(self.seller, name="Ativo", is_active=True)
+        make_product(self.seller, name="Inativo", is_active=False)
         self.login("vendedor1")
         response = self.client.get("/api/cards/products/")
         self.assertEqual(response.status_code, 200)
@@ -563,6 +583,16 @@ class ProductListTests(CardsApiTestCase):
         response = self.client.get("/api/cards/products/")
         self.assertEqual(response.status_code, 401)
 
+    def test_seller_does_not_see_other_sellers_products(self):
+        other_seller = make_vendor("vendedor2", Vendor.Role.SELLER)
+        make_product(self.seller, name="Do Vendedor 1")
+        make_product(other_seller, name="Do Vendedor 2")
+        self.login("vendedor1")
+        response = self.client.get("/api/cards/products/")
+        names = [p["name"] for p in response.data]
+        self.assertIn("Do Vendedor 1", names)
+        self.assertNotIn("Do Vendedor 2", names)
+
 
 class CartDebitTests(CardsApiTestCase):
     def _linked_card(self, uid="CART1", balance=Decimal("100.00")):
@@ -571,8 +601,8 @@ class CartDebitTests(CardsApiTestCase):
 
     def test_cart_debit_computes_total_from_db_prices(self):
         card = self._linked_card()
-        agua = make_product(name="Agua", price=Decimal("5.00"))
-        cerveja = make_product(name="Cerveja", price=Decimal("12.00"))
+        agua = make_product(self.seller, name="Agua", price=Decimal("5.00"))
+        cerveja = make_product(self.seller, name="Cerveja", price=Decimal("12.00"))
         self.login("vendedor1")
         response = self.client.post(
             f"/api/cards/{card.uid}/debit/",
@@ -594,7 +624,7 @@ class CartDebitTests(CardsApiTestCase):
 
     def test_cart_debit_ignores_client_supplied_price(self):
         card = self._linked_card()
-        product = make_product(name="Agua", price=Decimal("5.00"))
+        product = make_product(self.seller, name="Agua", price=Decimal("5.00"))
         self.login("vendedor1")
         response = self.client.post(
             f"/api/cards/{card.uid}/debit/",
@@ -609,7 +639,7 @@ class CartDebitTests(CardsApiTestCase):
 
     def test_cart_debit_creates_item_rows_with_snapshot(self):
         card = self._linked_card()
-        product = make_product(name="Espetinho", price=Decimal("15.00"))
+        product = make_product(self.seller, name="Espetinho", price=Decimal("15.00"))
         self.login("vendedor1")
         self.client.post(
             f"/api/cards/{card.uid}/debit/",
@@ -623,7 +653,7 @@ class CartDebitTests(CardsApiTestCase):
 
     def test_cart_debit_after_price_change_keeps_old_snapshot(self):
         card = self._linked_card()
-        product = make_product(name="Agua", price=Decimal("5.00"))
+        product = make_product(self.seller, name="Agua", price=Decimal("5.00"))
         self.login("vendedor1")
         self.client.post(
             f"/api/cards/{card.uid}/debit/",
@@ -647,7 +677,7 @@ class CartDebitTests(CardsApiTestCase):
 
     def test_cart_debit_rejects_zero_quantity(self):
         card = self._linked_card()
-        product = make_product()
+        product = make_product(self.seller)
         self.login("vendedor1")
         response = self.client.post(
             f"/api/cards/{card.uid}/debit/",
@@ -658,7 +688,7 @@ class CartDebitTests(CardsApiTestCase):
 
     def test_cart_debit_rejects_inactive_product(self):
         card = self._linked_card()
-        product = make_product(is_active=False)
+        product = make_product(self.seller, is_active=False)
         self.login("vendedor1")
         response = self.client.post(
             f"/api/cards/{card.uid}/debit/",
@@ -677,9 +707,21 @@ class CartDebitTests(CardsApiTestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    def test_cart_debit_rejects_other_vendors_product(self):
+        card = self._linked_card()
+        other_seller = make_vendor("vendedor2", Vendor.Role.SELLER)
+        product = make_product(other_seller, name="Do Vendedor 2", price=Decimal("10.00"))
+        self.login("vendedor1")
+        response = self.client.post(
+            f"/api/cards/{card.uid}/debit/",
+            {"items": [{"product_id": product.id, "quantity": 1}], "idempotency_key": "cart-8b"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
     def test_cart_debit_insufficient_balance_creates_no_items(self):
         card = self._linked_card(balance=Decimal("2.00"))
-        product = make_product(name="Espetinho", price=Decimal("15.00"))
+        product = make_product(self.seller, name="Espetinho", price=Decimal("15.00"))
         self.login("vendedor1")
         response = self.client.post(
             f"/api/cards/{card.uid}/debit/",
@@ -693,7 +735,7 @@ class CartDebitTests(CardsApiTestCase):
 
     def test_cart_debit_idempotency_replay_does_not_duplicate_items(self):
         card = self._linked_card()
-        product = make_product(name="Agua", price=Decimal("5.00"))
+        product = make_product(self.seller, name="Agua", price=Decimal("5.00"))
         self.login("vendedor1")
         payload = {"items": [{"product_id": product.id, "quantity": 2}], "idempotency_key": "cart-10"}
         self.client.post(f"/api/cards/{card.uid}/debit/", payload, format="json")

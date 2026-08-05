@@ -13,6 +13,12 @@ class VendorLoginSerializer(serializers.Serializer):
     password = serializers.CharField()
 
 
+class VendorOptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Vendor
+        fields = ["id", "display_name", "is_active"]
+
+
 class CardAmountSerializer(serializers.Serializer):
     amount = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0.01"))
     idempotency_key = serializers.CharField(max_length=64)
@@ -24,9 +30,16 @@ class CardLinkSerializer(serializers.Serializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
+    vendor_name = serializers.CharField(source="vendor.display_name", read_only=True)
+
     class Meta:
         model = Product
-        fields = ["id", "name", "price", "is_active", "created_at", "updated_at"]
+        fields = ["id", "vendor", "vendor_name", "name", "price", "is_active", "created_at", "updated_at"]
+
+    def validate_vendor(self, vendor):
+        if vendor.role != Vendor.Role.SELLER:
+            raise serializers.ValidationError("Produtos so podem ser vinculados a vendedores (papel seller).")
+        return vendor
 
 
 class CartItemSerializer(serializers.Serializer):
@@ -42,11 +55,12 @@ class CardCartSerializer(serializers.Serializer):
     def validate_items(self, items):
         if not items:
             raise serializers.ValidationError("Carrinho vazio.")
+        vendor = self.context["vendor"]
         ids = [i["product_id"] for i in items]
-        products = {p.id: p for p in Product.objects.filter(id__in=ids, is_active=True)}
+        products = {p.id: p for p in Product.objects.filter(id__in=ids, is_active=True, vendor=vendor)}
         missing = set(ids) - set(products)
         if missing:
-            raise serializers.ValidationError("Produto invalido ou inativo.")
+            raise serializers.ValidationError("Produto invalido, inativo ou de outro vendedor.")
         merged: dict[int, int] = {}
         for i in items:
             merged[i["product_id"]] = merged.get(i["product_id"], 0) + i["quantity"]

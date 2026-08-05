@@ -93,7 +93,7 @@ def link_card(request, uid):
 @api_view(["GET"])
 @permission_classes([IsSeller])
 def list_products(request):
-    products = Product.objects.filter(is_active=True)
+    products = Product.objects.filter(is_active=True, vendor=request.user.vendor_profile)
     return response.Response(ProductSerializer(products, many=True).data)
 
 
@@ -102,7 +102,7 @@ def list_products(request):
 def debit_card(request, uid):
     vendor = request.user.vendor_profile
     if "items" in request.data:
-        serializer = CardCartSerializer(data=request.data)
+        serializer = CardCartSerializer(data=request.data, context={"vendor": vendor})
         serializer.is_valid(raise_exception=True)
         items = serializer.validated_data["items"]
         amount = sum((product.price * qty for product, qty in items), Decimal("0.00"))
