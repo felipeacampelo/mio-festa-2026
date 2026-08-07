@@ -207,12 +207,12 @@ export async function transferTicket(ticketId: number, payload: { participant_na
 }
 
 export async function scanCheckin(qrToken: string) {
-  const response = await api.post("/checkin/scan/", { qr_token: qrToken });
+  const response = await vendorApi.post("/checkin/scan/", { qr_token: qrToken });
   return response.data;
 }
 
 export async function manualCheckin(ticketCode: string) {
-  const response = await api.post("/checkin/manual/", { ticket_code: ticketCode });
+  const response = await vendorApi.post("/checkin/manual/", { ticket_code: ticketCode });
   return response.data;
 }
 

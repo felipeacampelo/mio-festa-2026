@@ -7,6 +7,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from apps.cards.models import Vendor
 from apps.events.models import EventSettings
 from apps.orders.models import Order
 from apps.payments.models import Payment
@@ -226,6 +227,10 @@ class PaymentAndCheckinTests(TestCase):
         self.ticket = Ticket.objects.create(order=self.order, participant_name="Paulo", participant_email="paulo@example.com")
         self.payment = PaymentService().ensure_payment(self.order)
         self.admin = User.objects.create_superuser("admin", "admin@example.com", "123456")
+        checkin_user = User.objects.create_user("checkin_staff", password="123456")
+        self.checkin_vendor = Vendor.objects.create(
+            user=checkin_user, role=Vendor.Role.CHECKIN, display_name="Checkin", is_active=True
+        )
 
     def test_confirm_payment_activates_ticket(self):
         PaymentService().confirm_payment(self.payment, {"manual": True})
@@ -246,11 +251,26 @@ class PaymentAndCheckinTests(TestCase):
         from apps.tickets.services import build_ticket_token
 
         token = build_ticket_token(self.ticket)
-        self.client.force_authenticate(self.admin)
+        self.client.force_authenticate(self.checkin_vendor.user)
         first = self.client.post("/api/checkin/scan/", {"qr_token": token}, format="json")
         second = self.client.post("/api/checkin/scan/", {"qr_token": token}, format="json")
         self.assertEqual(first.data["result"], "confirmed")
         self.assertEqual(second.data["result"], "already_checked_in")
+
+    def test_admin_without_checkin_role_cannot_scan(self):
+        from apps.tickets.services import build_ticket_token
+
+        token = build_ticket_token(self.ticket)
+        self.client.force_authenticate(self.admin)
+        response = self.client.post("/api/checkin/scan/", {"qr_token": token}, format="json")
+        self.assertEqual(response.status_code, 403)
+
+    def test_unauthenticated_cannot_scan(self):
+        from apps.tickets.services import build_ticket_token
+
+        token = build_ticket_token(self.ticket)
+        response = self.client.post("/api/checkin/scan/", {"qr_token": token}, format="json")
+        self.assertEqual(response.status_code, 401)
 
     @patch.object(AsaasService, "get_payment", return_value={"id": "pay_test", "status": "OVERDUE"})
     def test_sync_payment_marks_order_and_payment_as_expired(self, _mock_get_payment):

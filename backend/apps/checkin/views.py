@@ -1,7 +1,8 @@
 from django.shortcuts import get_object_or_404
-from rest_framework import permissions, response
+from rest_framework import response
 from rest_framework.decorators import api_view, permission_classes
 
+from apps.cards.permissions import IsCheckin
 from apps.tickets.models import Ticket
 from apps.tickets.services import check_in_ticket, resolve_ticket_token
 
@@ -21,7 +22,7 @@ def _payload(ticket: Ticket, result: str):
 
 
 @api_view(["POST"])
-@permission_classes([permissions.IsAdminUser])
+@permission_classes([IsCheckin])
 def scan_checkin(request):
     ticket = resolve_ticket_token(request.data.get("qr_token", ""))
     result = check_in_ticket(ticket, request.user)
@@ -30,7 +31,7 @@ def scan_checkin(request):
 
 
 @api_view(["POST"])
-@permission_classes([permissions.IsAdminUser])
+@permission_classes([IsCheckin])
 def manual_checkin(request):
     ticket = get_object_or_404(Ticket, ticket_code=request.data.get("ticket_code"))
     result = check_in_ticket(ticket, request.user)

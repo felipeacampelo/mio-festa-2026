@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import jsQR from "jsqr";
-import AdminShell from "../components/AdminShell";
+import { useNavigate } from "react-router-dom";
+import VendorShell from "../components/VendorShell";
+import { useVendorAuth } from "../contexts/VendorAuthContext";
 import { manualCheckin, scanCheckin } from "../services/api";
 
 function SpinnerIcon() {
@@ -30,7 +32,9 @@ function IconX() {
   );
 }
 
-export default function AdminCheckinPage() {
+export default function VendorCheckinPage() {
+  const navigate = useNavigate();
+  const { vendor, logout } = useVendorAuth();
   const [ticketCode, setTicketCode] = useState("");
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
@@ -128,97 +132,88 @@ export default function AdminCheckinPage() {
     }
   };
 
-  const isSuccess = (r: any) => r?.result === "ok";
+  const isSuccess = (r: any) => r?.result === "confirmed";
 
   return (
-    <AdminShell>
-      <section className="page admin-page">
-        <div className="admin-page-header">
-          <p className="admin-kicker">Portaria</p>
-          <h1>Check-in</h1>
-        </div>
-
-        {/* Resultado de scan — ocupa atenção total */}
-        {result && (
-          <div className={`checkin-result ${isSuccess(result) ? "checkin-success" : "checkin-fail"}`}>
-            <div className="checkin-result-icon">
-              {isSuccess(result) ? <IconCheck /> : <IconX />}
-            </div>
-            <p className="checkin-result-status">
-              {isSuccess(result) ? "LIBERADO" : "NEGADO"}
-            </p>
-            <p className="checkin-result-name">{result.participant?.name}</p>
-            {result.participant?.ticket_code && (
-              <p className="checkin-result-code">{result.participant.ticket_code}</p>
-            )}
-            {!isSuccess(result) && result.result && (
-              <p className="checkin-result-reason">{result.result}</p>
-            )}
-            <button className="button checkin-next-btn" onClick={resetCheckin}>
-              Próximo
-            </button>
+    <VendorShell vendor={vendor} onLogout={logout}>
+      {result && (
+        <div className={`checkin-result ${isSuccess(result) ? "checkin-success" : "checkin-fail"}`}>
+          <div className="checkin-result-icon">
+            {isSuccess(result) ? <IconCheck /> : <IconX />}
           </div>
-        )}
+          <p className="checkin-result-status">
+            {isSuccess(result) ? "LIBERADO" : "NEGADO"}
+          </p>
+          <p className="checkin-result-name">{result.participant?.name}</p>
+          {result.participant?.ticket_code && (
+            <p className="checkin-result-code">{result.participant.ticket_code}</p>
+          )}
+          {!isSuccess(result) && result.result && (
+            <p className="checkin-result-reason">{result.result}</p>
+          )}
+          <button className="button checkin-next-btn" onClick={resetCheckin}>
+            Próximo
+          </button>
+        </div>
+      )}
 
-        {!result && (
-          <div className="admin-grid">
+      {!result && (
+        <>
+          <div className="card">
+            <h2>Câmera</h2>
+            <div className="camera-wrap">
+              <video
+                ref={videoRef}
+                className="camera-preview"
+                muted
+                playsInline
+                aria-label="Câmera para leitura de QR Code"
+              />
+              {scanning && <div className="camera-scanning-indicator" aria-hidden="true" />}
+            </div>
+            {!scanning ? (
+              <button className="button button-primary" onClick={startCamera}>
+                Iniciar leitura
+              </button>
+            ) : (
+              <button className="button button-secondary" onClick={stopCamera}>
+                Parar câmera
+              </button>
+            )}
+          </div>
 
-            {/* Câmera */}
-            <div className="card">
-              <h2>Câmera</h2>
-              <div className="camera-wrap">
-                <video
-                  ref={videoRef}
-                  className="camera-preview"
-                  muted
-                  playsInline
-                  aria-label="Câmera para leitura de QR Code"
+          <div className="card">
+            <h2>Digitar código</h2>
+            <div className="stack-form">
+              <div className="field">
+                <label htmlFor="manual-code">Código do ingresso</label>
+                <input
+                  id="manual-code"
+                  type="text"
+                  placeholder="Ex: TKT-XXXXXX"
+                  value={ticketCode}
+                  onChange={(e) => setTicketCode(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleManual(); }}
+                  autoCapitalize="characters"
                 />
-                {scanning && <div className="camera-scanning-indicator" aria-hidden="true" />}
               </div>
-              {!scanning ? (
-                <button className="button button-primary" onClick={startCamera}>
-                  Iniciar leitura
-                </button>
-              ) : (
-                <button className="button button-secondary" onClick={stopCamera}>
-                  Parar câmera
-                </button>
+              <button
+                className="button button-primary"
+                onClick={handleManual}
+                disabled={manualLoading || !ticketCode.trim()}
+              >
+                {manualLoading ? <><SpinnerIcon /> Validando…</> : "Validar ingresso"}
+              </button>
+              <button className="button button-secondary" type="button" onClick={() => navigate("/caixa")}>
+                Voltar
+              </button>
+              {error && (
+                <div className="error-box" role="alert">{error}</div>
               )}
             </div>
-
-            {/* Código manual */}
-            <div className="card">
-              <h2>Digitar código</h2>
-              <div className="stack-form">
-                <div className="field">
-                  <label htmlFor="manual-code">Código do ingresso</label>
-                  <input
-                    id="manual-code"
-                    type="text"
-                    placeholder="Ex: TKT-XXXXXX"
-                    value={ticketCode}
-                    onChange={(e) => setTicketCode(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") handleManual(); }}
-                    autoCapitalize="characters"
-                  />
-                </div>
-                <button
-                  className="button button-primary"
-                  onClick={handleManual}
-                  disabled={manualLoading || !ticketCode.trim()}
-                >
-                  {manualLoading ? <><SpinnerIcon /> Validando…</> : "Validar ingresso"}
-                </button>
-                {error && (
-                  <div className="error-box" role="alert">{error}</div>
-                )}
-              </div>
-            </div>
-
           </div>
-        )}
-      </section>
-    </AdminShell>
+        </>
+      )}
+    </VendorShell>
   );
 }

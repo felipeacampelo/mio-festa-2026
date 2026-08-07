@@ -3,7 +3,6 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { VendorAuthProvider } from "./contexts/VendorAuthContext";
 import AdminCardsPage from "./pages/AdminCardsPage";
 import AdminProductsPage from "./pages/AdminProductsPage";
-import AdminCheckinPage from "./pages/AdminCheckinPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminEventPage from "./pages/AdminEventPage";
 import AdminLoginPage from "./pages/AdminLoginPage";
@@ -13,6 +12,7 @@ import HomePage from "./pages/HomePage";
 import OrderLookupPage from "./pages/OrderLookupPage";
 import OrderPage from "./pages/OrderPage";
 import VendorCardPage from "./pages/VendorCardPage";
+import VendorCheckinPage from "./pages/VendorCheckinPage";
 import VendorHomePage from "./pages/VendorHomePage";
 import VendorLoginPage from "./pages/VendorLoginPage";
 import { PrivateRoute } from "./components/PrivateRoute";
@@ -40,14 +40,6 @@ export default function App() {
           element={
             <PrivateRoute>
               <AdminOrdersPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/admin/checkin"
-          element={
-            <PrivateRoute>
-              <AdminCheckinPage />
             </PrivateRoute>
           }
         />
@@ -89,6 +81,16 @@ export default function App() {
             <VendorAuthProvider>
               <VendorPrivateRoute>
                 <VendorHomePage />
+              </VendorPrivateRoute>
+            </VendorAuthProvider>
+          }
+        />
+        <Route
+          path="/caixa/checkin"
+          element={
+            <VendorAuthProvider>
+              <VendorPrivateRoute>
+                <VendorCheckinPage />
               </VendorPrivateRoute>
             </VendorAuthProvider>
           }

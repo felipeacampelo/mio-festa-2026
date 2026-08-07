@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import VendorShell from "../components/VendorShell";
 import { useVendorAuth } from "../contexts/VendorAuthContext";
 
@@ -15,6 +16,11 @@ export default function VendorHomePage() {
       <div className="card">
         <h2>Aguardando cartão</h2>
         <p>{(vendor && MESSAGES[vendor.role]) || "Toque um cartão para começar."}</p>
+        {vendor?.role === "checkin" && (
+          <Link to="/caixa/checkin" className="button button-primary" style={{ marginTop: "1rem", display: "inline-block" }}>
+            Ler QR code (check-in)
+          </Link>
+        )}
       </div>
     </VendorShell>
   );
