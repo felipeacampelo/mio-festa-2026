@@ -16,9 +16,10 @@ export default function VendorLoginPage() {
     setLoading(true);
     setError("");
     try {
-      await login(username, password);
+      const vendor = await login(username, password);
       const next = searchParams.get("next");
-      navigate(next || "/caixa", { replace: true });
+      const fallback = vendor.role === "checkin" ? "/caixa/checkin" : "/caixa";
+      navigate(next || fallback, { replace: true });
     } catch {
       setError("Usuário ou senha inválidos. Tente novamente.");
     } finally {

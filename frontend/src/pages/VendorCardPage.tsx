@@ -213,7 +213,10 @@ export default function VendorCardPage() {
   };
 
   const goToNextCard = () => {
-    navigate("/caixa", { replace: true });
+    // Quem tem login checkin passa o evento inteiro lendo QR code - depois
+    // de vincular um cartão, a próxima ação quase sempre é ler o próximo
+    // ingresso, não esperar parado o próximo toque de cartão.
+    navigate(vendor?.role === "checkin" ? "/caixa/checkin" : "/caixa", { replace: true });
   };
 
   if (loading) {

@@ -5,7 +5,7 @@ type VendorAuthContextValue = {
   token: string | null;
   vendor: Vendor | null;
   isAuthenticated: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<Vendor>;
   logout: () => void;
 };
 
@@ -53,6 +53,7 @@ export function VendorAuthProvider({ children }: { children: React.ReactNode }) 
     setVendorAuthToken(response.token);
     setToken(response.token);
     setVendor(response.vendor);
+    return response.vendor;
   };
 
   return (
