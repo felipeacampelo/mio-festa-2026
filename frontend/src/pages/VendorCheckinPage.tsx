@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import VendorShell from "../components/VendorShell";
 import { useVendorAuth } from "../contexts/VendorAuthContext";
 import { manualCheckin, scanCheckin } from "../services/api";
+import { setPendingCardLink } from "../services/pendingCardLink";
 
 function SpinnerIcon() {
   return (
@@ -65,6 +66,12 @@ export default function VendorCheckinPage() {
   const handleResult = (response: any) => {
     setResult(response);
     stopCamera();
+    // "blocked" significa ingresso pendente/cancelado - nao guarda sugestao
+    // de vinculo pra isso. "confirmed" e "already_checked_in" sao pessoas
+    // de verdade que podem precisar de cartao.
+    if (response?.result !== "blocked" && response?.participant?.ticket_id) {
+      setPendingCardLink(response.participant.ticket_id, response.participant.name);
+    }
   };
 
   const resetCheckin = () => {
@@ -150,6 +157,9 @@ export default function VendorCheckinPage() {
           )}
           {!isSuccess(result) && result.result && (
             <p className="checkin-result-reason">{result.result}</p>
+          )}
+          {result.result !== "blocked" && (
+            <p className="checkin-result-reason">Agora peça para a pessoa tocar o cartão no celular.</p>
           )}
           <button className="button checkin-next-btn" onClick={resetCheckin}>
             Próximo

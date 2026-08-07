@@ -15,6 +15,7 @@ import {
   linkCard,
   searchTickets,
 } from "../services/api";
+import { PendingCardLink, clearPendingCardLink, getPendingCardLink } from "../services/pendingCardLink";
 
 function SpinnerIcon() {
   return (
@@ -83,6 +84,7 @@ export default function VendorCardPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<Record<number, number>>({});
   const [manualMode, setManualMode] = useState(false);
+  const [pendingLink, setPendingLink] = useState<PendingCardLink | null>(() => getPendingCardLink());
 
   const setAmountForNewAttempt = (value: string) => {
     idempotencyKeyRef.current = null;
@@ -158,6 +160,8 @@ export default function VendorCardPage() {
         setQuery("");
         setSearchResults([]);
         setJustLinkedName(response.card.participant_name);
+        clearPendingCardLink();
+        setPendingLink(null);
       } else {
         setError(RESULT_LABELS[response.result] || "Não foi possível vincular este cartão.");
       }
@@ -302,6 +306,34 @@ export default function VendorCardPage() {
     }
     return (
       <VendorShell vendor={vendor} onLogout={logout}>
+        {pendingLink && (
+          <div className="card" style={{ marginBottom: "1rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: "0.8rem", opacity: 0.75 }}>Validado agora no check-in</div>
+                <strong>{pendingLink.participantName}</strong>
+              </div>
+              <button
+                className="button button-primary"
+                disabled={linking === pendingLink.ticketId}
+                onClick={() => handleLink(pendingLink.ticketId)}
+              >
+                {linking === pendingLink.ticketId ? "Vinculando…" : "Vincular"}
+              </button>
+            </div>
+            <button
+              className="button button-secondary"
+              type="button"
+              style={{ marginTop: "0.75rem", width: "100%" }}
+              onClick={() => {
+                clearPendingCardLink();
+                setPendingLink(null);
+              }}
+            >
+              Não é essa pessoa
+            </button>
+          </div>
+        )}
         <div className="card">
           <h2>Vincular cartão</h2>
           <div className="stack-form">
