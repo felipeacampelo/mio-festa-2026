@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
-import jsQR from "jsqr";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import VendorShell from "../components/VendorShell";
 import { useVendorAuth } from "../contexts/VendorAuthContext";
+import { useQrScanner } from "../hooks/useQrScanner";
 import { manualCheckin, scanCheckin } from "../services/api";
 import { setPendingCardLink } from "../services/pendingCardLink";
 
@@ -39,29 +39,7 @@ export default function VendorCheckinPage() {
   const [ticketCode, setTicketCode] = useState("");
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
-  const [scanning, setScanning] = useState(false);
   const [manualLoading, setManualLoading] = useState(false);
-
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const intervalRef = useRef<number | null>(null);
-
-  const stopCamera = () => {
-    if (intervalRef.current) {
-      window.clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    setScanning(false);
-  };
-
-  useEffect(() => {
-    return () => stopCamera();
-  }, []);
 
   const handleResult = (response: any) => {
     setResult(response);
@@ -74,55 +52,20 @@ export default function VendorCheckinPage() {
     }
   };
 
+  const { videoRef, scanning, cameraError, startCamera, stopCamera } = useQrScanner(async (data) => {
+    try {
+      const response = await scanCheckin(data);
+      handleResult(response);
+    } catch {
+      setError("Erro ao validar QR code. Tente o código manual.");
+      stopCamera();
+    }
+  });
+
   const resetCheckin = () => {
     setResult(null);
     setError("");
     setTicketCode("");
-  };
-
-  const startCamera = async () => {
-    setError("");
-    setResult(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      if (!canvasRef.current) canvasRef.current = document.createElement("canvas");
-      setScanning(true);
-
-      intervalRef.current = window.setInterval(async () => {
-        if (!videoRef.current || !canvasRef.current) return;
-        const width = videoRef.current.videoWidth;
-        const height = videoRef.current.videoHeight;
-        if (!width || !height) return;
-        const context = canvasRef.current.getContext("2d", { willReadFrequently: true });
-        if (!context) return;
-        canvasRef.current.width = width;
-        canvasRef.current.height = height;
-        context.drawImage(videoRef.current, 0, 0, width, height);
-        const imageData = context.getImageData(0, 0, width, height);
-        const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
-        if (!qrCode?.data) return;
-        try {
-          const response = await scanCheckin(qrCode.data);
-          handleResult(response);
-        } catch {
-          setError("Erro ao validar QR code. Tente o código manual.");
-          stopCamera();
-        }
-      }, 1000);
-    } catch {
-      setError("Não foi possível acessar a câmera.");
-    }
   };
 
   const handleManual = async () => {
@@ -190,6 +133,7 @@ export default function VendorCheckinPage() {
                 Parar câmera
               </button>
             )}
+            {cameraError && <div className="error-box" role="alert">{cameraError}</div>}
           </div>
 
           <div className="card">

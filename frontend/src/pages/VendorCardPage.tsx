@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import VendorShell from "../components/VendorShell";
 import { useVendorAuth } from "../contexts/VendorAuthContext";
+import { useQrScanner } from "../hooks/useQrScanner";
 import {
   Card,
   CardResult,
@@ -13,6 +14,8 @@ import {
   getCard,
   getProducts,
   linkCard,
+  manualCheckin,
+  scanCheckin,
   searchTickets,
 } from "../services/api";
 import { PendingCardLink, clearPendingCardLink, getPendingCardLink } from "../services/pendingCardLink";
@@ -85,6 +88,10 @@ export default function VendorCardPage() {
   const [cart, setCart] = useState<Record<number, number>>({});
   const [manualMode, setManualMode] = useState(false);
   const [pendingLink, setPendingLink] = useState<PendingCardLink | null>(() => getPendingCardLink());
+
+  const [showLinkFallback, setShowLinkFallback] = useState(false);
+  const [checkinCode, setCheckinCode] = useState("");
+  const [checkinLoading, setCheckinLoading] = useState(false);
 
   const setAmountForNewAttempt = (value: string) => {
     idempotencyKeyRef.current = null;
@@ -162,6 +169,7 @@ export default function VendorCardPage() {
         setJustLinkedName(response.card.participant_name);
         clearPendingCardLink();
         setPendingLink(null);
+        stopQrCamera();
       } else {
         setError(RESULT_LABELS[response.result] || "Não foi possível vincular este cartão.");
       }
@@ -170,6 +178,56 @@ export default function VendorCardPage() {
     } finally {
       setLinking(null);
     }
+  };
+
+  // Le o ingresso (via QR ou codigo manual) e ja vincula ao cartao desta
+  // pagina numa unica acao - complementa o fluxo inverso (ler QR primeiro
+  // na tela de check-in, depois tocar o cartao) para quando o cartao e
+  // tocado antes de qualquer leitura.
+  const resolveAndLink = async (checkinPromise: Promise<any>) => {
+    setCheckinLoading(true);
+    setError("");
+    try {
+      const checkinResponse = await checkinPromise;
+      if (checkinResponse?.result === "blocked") {
+        setError("Ingresso pendente ou cancelado - não é possível vincular.");
+        return;
+      }
+      const ticketId = checkinResponse?.participant?.ticket_id;
+      if (!ticketId) {
+        setError("Não foi possível identificar o ingresso.");
+        return;
+      }
+      await handleLink(ticketId);
+    } catch {
+      setError("Código inválido ou erro de comunicação.");
+    } finally {
+      setCheckinLoading(false);
+    }
+  };
+
+  const {
+    videoRef: qrVideoRef,
+    scanning: qrScanning,
+    cameraError: qrCameraError,
+    startCamera: startQrCamera,
+    stopCamera: stopQrCamera,
+  } = useQrScanner(async (data) => {
+    stopQrCamera();
+    await resolveAndLink(scanCheckin(data));
+  });
+
+  useEffect(() => {
+    if (vendor?.role === "checkin" && card && card.status === "active" && !card.participant_name) {
+      startQrCamera();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card?.participant_name, card?.status, vendor?.role]);
+
+  const handleManualCheckinCode = async () => {
+    if (!checkinCode.trim()) return;
+    await resolveAndLink(manualCheckin(checkinCode.trim()));
+    setCheckinCode("");
   };
 
   const submitManualAction = async () => {
@@ -338,43 +396,102 @@ export default function VendorCardPage() {
           </div>
         )}
         <div className="card">
-          <h2>Vincular cartão</h2>
-          <div className="stack-form">
-            <div className="field">
-              <label htmlFor="search">Nome ou CPF do participante</label>
-              <input
-                id="search"
-                type="text"
-                placeholder="Digite para buscar…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                autoFocus
-              />
-            </div>
-            {searching && <p>Buscando…</p>}
-            {!searching && query.trim() && searchResults.length === 0 && <p>Nenhum participante encontrado.</p>}
-            {searchResults.map((t) => (
-              <div key={t.id} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <strong>{t.participant_name}</strong>
-                  {t.is_child && <span className="child-toggle-badge" style={{ marginLeft: "0.5rem" }}>Criança</span>}
-                  {t.purchased_on_event_day && (
-                    <span className="child-toggle-badge" style={{ marginLeft: "0.5rem" }}>Compra no dia — sem consumação</span>
-                  )}
-                  <div style={{ fontSize: "0.85rem", opacity: 0.75 }}>Pedido de {t.order_buyer_name}</div>
-                </div>
-                <button
-                  className="button button-primary"
-                  disabled={t.has_card || linking === t.id}
-                  onClick={() => handleLink(t.id)}
-                >
-                  {t.has_card ? "Já tem cartão" : linking === t.id ? "Vinculando…" : "Vincular"}
-                </button>
-              </div>
-            ))}
+          <h2>Ler QR do ingresso</h2>
+          <div className="camera-wrap">
+            <video
+              ref={qrVideoRef}
+              className="camera-preview"
+              muted
+              playsInline
+              aria-label="Câmera para leitura de QR Code"
+            />
+            {qrScanning && <div className="camera-scanning-indicator" aria-hidden="true" />}
           </div>
+          {checkinLoading ? (
+            <p><SpinnerIcon /> Validando…</p>
+          ) : qrScanning ? (
+            <button className="button button-secondary" onClick={stopQrCamera}>
+              Parar câmera
+            </button>
+          ) : (
+            <button className="button button-primary" onClick={startQrCamera}>
+              Iniciar leitura
+            </button>
+          )}
+          {qrCameraError && <div className="error-box" role="alert">{qrCameraError}</div>}
           {error && <div className="error-box" role="alert">{error}</div>}
         </div>
+
+        <button
+          className="button button-secondary"
+          type="button"
+          style={{ margin: "1rem 0", width: "100%" }}
+          onClick={() => setShowLinkFallback((v) => !v)}
+        >
+          {showLinkFallback ? "Ocultar busca manual" : "Não consegue ler o QR? Buscar manualmente"}
+        </button>
+
+        {showLinkFallback && (
+          <div className="card">
+            <h2>Código do ingresso</h2>
+            <div className="stack-form">
+              <div className="field">
+                <label htmlFor="checkinCode">Código do ingresso</label>
+                <input
+                  id="checkinCode"
+                  type="text"
+                  placeholder="Ex: TKT-XXXXXX"
+                  value={checkinCode}
+                  onChange={(e) => setCheckinCode(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleManualCheckinCode(); }}
+                  autoCapitalize="characters"
+                />
+              </div>
+              <button
+                className="button button-primary"
+                onClick={handleManualCheckinCode}
+                disabled={checkinLoading || !checkinCode.trim()}
+              >
+                Validar e vincular
+              </button>
+            </div>
+
+            <h2 style={{ marginTop: "1.5rem" }}>Ou buscar por nome/CPF</h2>
+            <div className="stack-form">
+              <div className="field">
+                <label htmlFor="search">Nome ou CPF do participante</label>
+                <input
+                  id="search"
+                  type="text"
+                  placeholder="Digite para buscar…"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </div>
+              {searching && <p>Buscando…</p>}
+              {!searching && query.trim() && searchResults.length === 0 && <p>Nenhum participante encontrado.</p>}
+              {searchResults.map((t) => (
+                <div key={t.id} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <strong>{t.participant_name}</strong>
+                    {t.is_child && <span className="child-toggle-badge" style={{ marginLeft: "0.5rem" }}>Criança</span>}
+                    {t.purchased_on_event_day && (
+                      <span className="child-toggle-badge" style={{ marginLeft: "0.5rem" }}>Compra no dia — sem consumação</span>
+                    )}
+                    <div style={{ fontSize: "0.85rem", opacity: 0.75 }}>Pedido de {t.order_buyer_name}</div>
+                  </div>
+                  <button
+                    className="button button-primary"
+                    disabled={t.has_card || linking === t.id}
+                    onClick={() => handleLink(t.id)}
+                  >
+                    {t.has_card ? "Já tem cartão" : linking === t.id ? "Vinculando…" : "Vincular"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </VendorShell>
     );
   }
