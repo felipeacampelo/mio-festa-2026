@@ -187,7 +187,7 @@ export default function HomePage() {
                 <span className="info-value info-price">{formatPrice(event.price)}</span>
               )}
               {event?.price && (
-                <span className="info-consumacao-note">R$&nbsp;35 revertidos em consumação</span>
+                <span className="info-consumacao-note">Não inclui consumação</span>
               )}
               <span className="info-status">
                 {event
