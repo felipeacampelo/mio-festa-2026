@@ -133,9 +133,11 @@ export default function VendorCheckinPage() {
 
       {!result && (
         <>
-          <div className="card">
+          <div className="card" style={{ marginBottom: "1.5rem" }}>
             <h2>Pedidos comprados na hora</h2>
-            <p>Se alguém acabou de pagar na porta, atualize antes de tentar o check-in.</p>
+            <p style={{ marginBottom: "1rem" }}>
+              Se alguém acabou de pagar na porta, atualize antes de tentar o check-in.
+            </p>
             <button
               className="button button-secondary"
               onClick={handleSyncPayments}
@@ -143,10 +145,10 @@ export default function VendorCheckinPage() {
             >
               {syncingPayments ? <><SpinnerIcon /> Atualizando…</> : "Atualizar pedidos"}
             </button>
-            {syncMessage && <p className="checkin-result-reason">{syncMessage}</p>}
+            {syncMessage && <p className="checkin-result-reason" style={{ marginTop: "0.75rem" }}>{syncMessage}</p>}
           </div>
 
-          <div className="card">
+          <div className="card" style={{ marginBottom: "1.5rem" }}>
             <h2>Câmera</h2>
             <div className="camera-wrap">
               <video
