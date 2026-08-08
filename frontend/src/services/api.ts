@@ -141,6 +141,11 @@ export async function createOrder(payload: {
   return response.data;
 }
 
+export async function createCourtesyOrder(payload: { participant_name: string; participant_email?: string }) {
+  const response = await api.post<Order>("/orders/admin/courtesy/", payload);
+  return response.data;
+}
+
 export async function lookupOrder(publicId: string, buyerEmail: string) {
   const response = await api.post<Order>("/orders/lookup/", { public_id: publicId, buyer_email: buyerEmail });
   return response.data;

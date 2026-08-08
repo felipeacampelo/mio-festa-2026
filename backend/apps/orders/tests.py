@@ -208,6 +208,58 @@ class CheckoutFlowTests(TestCase):
         self.assertEqual(Payment.objects.count(), 0)
 
 
+class CourtesyOrderTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.admin = User.objects.create_superuser("admin", "admin@example.com", "123456")
+
+    def admin_login(self):
+        self.client.force_authenticate(self.admin)
+
+    def test_admin_can_create_courtesy_order(self):
+        self.admin_login()
+        response = self.client.post(
+            "/api/orders/admin/courtesy/",
+            {"participant_name": "Pastor Convidado", "participant_email": "pastor@example.com"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        order = Order.objects.get(pk=response.data["id"])
+        self.assertEqual(order.status, Order.Status.PAID)
+        self.assertEqual(order.payment_method, Order.PaymentMethod.COURTESY)
+        self.assertEqual(order.total_amount, Decimal("0.00"))
+        self.assertFalse(hasattr(order, "payment"))
+        ticket = order.tickets.get()
+        self.assertEqual(ticket.status, Ticket.Status.ACTIVE)
+        self.assertEqual(ticket.participant_name, "Pastor Convidado")
+
+    def test_courtesy_email_is_optional(self):
+        self.admin_login()
+        response = self.client.post(
+            "/api/orders/admin/courtesy/", {"participant_name": "Sem Email"}, format="json"
+        )
+        self.assertEqual(response.status_code, 201)
+
+    def test_courtesy_ticket_can_be_linked_to_a_card(self):
+        from apps.cards import services as card_services
+
+        self.admin_login()
+        response = self.client.post(
+            "/api/orders/admin/courtesy/", {"participant_name": "Cortesia Cartao"}, format="json"
+        )
+        ticket_id = response.data["tickets"][0]["id"]
+        card_services.get_or_create_card("CORTESIA1")
+        result, card = card_services.link_card("CORTESIA1", ticket_id)
+        self.assertEqual(result, "ok")
+        self.assertEqual(card.balance, Decimal("0.00"))
+
+    def test_non_admin_cannot_create_courtesy_order(self):
+        response = self.client.post(
+            "/api/orders/admin/courtesy/", {"participant_name": "Alguem"}, format="json"
+        )
+        self.assertEqual(response.status_code, 401)
+
+
 class PaymentAndCheckinTests(TestCase):
     def setUp(self):
         self.client = APIClient()

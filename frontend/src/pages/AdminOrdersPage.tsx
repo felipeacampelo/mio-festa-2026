@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import AdminShell from "../components/AdminShell";
-import { editTicket, getAdminOrders, getAdminTickets, resendTickets, syncOrderPayment, transferTicket, undoCheckin } from "../services/api";
+import { createCourtesyOrder, editTicket, getAdminOrders, getAdminTickets, resendTickets, syncOrderPayment, transferTicket, undoCheckin } from "../services/api";
 
 function SpinnerIcon() {
   return (
@@ -123,6 +123,12 @@ export default function AdminOrdersPage() {
   const [syncing, setSyncing] = useState<Record<number, boolean>>({});
   const [undoingCheckin, setUndoingCheckin] = useState<Record<number, boolean>>({});
 
+  const [showCourtesyModal, setShowCourtesyModal] = useState(false);
+  const [courtesyName, setCourtesyName] = useState("");
+  const [courtesyEmail, setCourtesyEmail] = useState("");
+  const [courtesyLoading, setCourtesyLoading] = useState(false);
+  const [courtesyError, setCourtesyError] = useState("");
+
   const [ticketModal, setTicketModal] = useState<TicketModal | null>(null);
   const [modalName, setModalName] = useState("");
   const [modalEmail, setModalEmail] = useState("");
@@ -225,6 +231,31 @@ export default function AdminOrdersPage() {
     load(1, 1);
   };
 
+  const openCourtesyModal = () => {
+    setCourtesyName("");
+    setCourtesyEmail("");
+    setCourtesyError("");
+    setShowCourtesyModal(true);
+  };
+
+  const confirmCourtesy = async () => {
+    if (!courtesyName.trim()) return;
+    setCourtesyLoading(true);
+    setCourtesyError("");
+    try {
+      await createCourtesyOrder({
+        participant_name: courtesyName.trim(),
+        participant_email: courtesyEmail.trim(),
+      });
+      setShowCourtesyModal(false);
+      load(1, 1);
+    } catch {
+      setCourtesyError("Não foi possível criar a cortesia.");
+    } finally {
+      setCourtesyLoading(false);
+    }
+  };
+
   const ordersTotalPages = Math.max(Math.ceil(ordersCount / PAGE_SIZE), 1);
   const ticketsTotalPages = Math.max(Math.ceil(ticketsCount / PAGE_SIZE), 1);
 
@@ -250,6 +281,9 @@ export default function AdminOrdersPage() {
             </div>
             <button className="button button-secondary" onClick={handleSearch} disabled={loading}>
               {loading ? <SpinnerIcon /> : "Buscar"}
+            </button>
+            <button className="button button-primary" onClick={openCourtesyModal}>
+              + Nova cortesia
             </button>
           </div>
         </div>
@@ -294,8 +328,12 @@ export default function AdminOrdersPage() {
                   <td>{order.quantity}</td>
                   <td>{formatCurrency(order.total_amount)}</td>
                   <td><StatusBadge status={order.status} /></td>
-                  <td><StatusBadge status={order.payment?.status || "pending"} /></td>
-                  <td>{order.payment_method === "pix" ? "PIX" : "Cartão"}</td>
+                  <td>
+                    {order.payment_method === "courtesy"
+                      ? <span className="status-badge paid">Cortesia</span>
+                      : <StatusBadge status={order.payment?.status || "pending"} />}
+                  </td>
+                  <td>{order.payment_method === "pix" ? "PIX" : order.payment_method === "courtesy" ? "Cortesia" : "Cartão"}</td>
                   <td>{formatDate(order.created_at)}</td>
                   <td>
                     <div className="admin-row-actions">
@@ -456,6 +494,70 @@ export default function AdminOrdersPage() {
                 disabled={modalLoading || !modalName.trim()}
               >
                 {modalLoading ? <><SpinnerIcon /> Salvando…</> : ticketModal.mode === "edit" ? "Salvar" : "Transferir"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de cortesia */}
+      {showCourtesyModal && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="courtesy-modal-title"
+          onClick={(e) => { if (e.target === e.currentTarget && !courtesyLoading) setShowCourtesyModal(false); }}
+        >
+          <div className="modal-box">
+            <h2 id="courtesy-modal-title">Nova cortesia</h2>
+            <p className="modal-body">
+              Cria um ingresso ativo sem pagamento. A pessoa já pode ser vinculada a um cartão normalmente.
+            </p>
+            <div className="stack-form" style={{ marginTop: "var(--sp-2)" }}>
+              <div className="field">
+                <label htmlFor="courtesy-name">
+                  Nome <span className="req" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="courtesy-name"
+                  type="text"
+                  value={courtesyName}
+                  onChange={(e) => setCourtesyName(e.target.value)}
+                  autoComplete="name"
+                  autoFocus
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="courtesy-email">
+                  E-mail <span className="optional">(opcional)</span>
+                </label>
+                <input
+                  id="courtesy-email"
+                  type="email"
+                  value={courtesyEmail}
+                  onChange={(e) => setCourtesyEmail(e.target.value)}
+                  inputMode="email"
+                />
+              </div>
+              {courtesyError && <div className="error-box" role="alert">{courtesyError}</div>}
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="button"
+                onClick={() => setShowCourtesyModal(false)}
+                disabled={courtesyLoading}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="button button-primary"
+                onClick={confirmCourtesy}
+                disabled={courtesyLoading || !courtesyName.trim()}
+              >
+                {courtesyLoading ? <><SpinnerIcon /> Criando…</> : "Criar cortesia"}
               </button>
             </div>
           </div>

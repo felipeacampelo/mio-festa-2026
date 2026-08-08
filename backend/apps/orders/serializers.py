@@ -165,3 +165,37 @@ class OrderCreateSerializer(serializers.Serializer):
                 append_audit(ticket, TicketAuditLog.Action.CREATED, note="Ticket criado no checkout.")
             PaymentService().ensure_payment(order)
             return order
+
+
+class CourtesyOrderCreateSerializer(serializers.Serializer):
+    participant_name = serializers.CharField(max_length=255)
+    participant_email = serializers.EmailField(required=False, allow_blank=True)
+
+    def create(self, validated_data):
+        from apps.tickets.models import TicketAuditLog
+        from apps.tickets.services import append_audit
+
+        name = validated_data["participant_name"]
+        email = validated_data.get("participant_email", "")
+        with transaction.atomic():
+            order = Order.objects.create(
+                buyer_name=name,
+                buyer_email=email,
+                buyer_document="",
+                quantity=1,
+                unit_price=Decimal("0.00"),
+                total_amount=Decimal("0.00"),
+                accepted_no_refund=True,
+                payment_method=Order.PaymentMethod.COURTESY,
+            )
+            ticket = Ticket.objects.create(
+                order=order,
+                participant_name=name,
+                participant_email=email,
+                status=Ticket.Status.PENDING,
+            )
+            append_audit(ticket, TicketAuditLog.Action.CREATED, note="Cortesia criada pelo admin.")
+            # total_amount=0 faz o ensure_payment confirmar o pedido na hora
+            # (mesmo caminho de um evento gratuito) - sem cobranca, sem Asaas.
+            PaymentService().ensure_payment(order)
+            return order

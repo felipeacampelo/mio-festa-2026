@@ -1,7 +1,7 @@
 from rest_framework import generics, permissions, response, status
 
 from .models import Order
-from .serializers import OrderCreateSerializer, OrderSerializer
+from .serializers import CourtesyOrderCreateSerializer, OrderCreateSerializer, OrderSerializer
 
 
 class OrderCreateView(generics.CreateAPIView):
@@ -21,6 +21,17 @@ class OrderCreateView(generics.CreateAPIView):
         data = OrderSerializer(order).data
         data["access_token"] = order.access_token
         return response.Response(data, status=status.HTTP_201_CREATED)
+
+
+class AdminCourtesyOrderCreateView(generics.CreateAPIView):
+    permission_classes = [permissions.IsAdminUser]
+    serializer_class = CourtesyOrderCreateSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        order = serializer.save()
+        return response.Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
 
 class OrderLookupView(generics.GenericAPIView):

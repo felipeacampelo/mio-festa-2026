@@ -24,6 +24,7 @@ class Order(models.Model):
     class PaymentMethod(models.TextChoices):
         PIX = "pix", "PIX"
         CREDIT_CARD = "credit_card", "Cartao"
+        COURTESY = "courtesy", "Cortesia"
 
     public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     order_code = models.CharField(max_length=10, default=generate_order_code, unique=True, editable=False)
