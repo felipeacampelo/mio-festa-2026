@@ -216,6 +216,13 @@ export async function manualCheckin(ticketCode: string) {
   return response.data;
 }
 
+export async function syncPendingPayments() {
+  const response = await vendorApi.post<{ ok: boolean; checked: number; confirmed: number }>(
+    "/payments/vendor/sync-pending/"
+  );
+  return response.data;
+}
+
 export type Vendor = {
   id: number;
   display_name: string;

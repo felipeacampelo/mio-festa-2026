@@ -4,6 +4,7 @@ from django.conf import settings
 from rest_framework import permissions, response, status
 from rest_framework.decorators import api_view, permission_classes
 
+from apps.cards.permissions import IsCheckin
 from apps.orders.models import Order
 from apps.payments.models import Payment
 from apps.payments.services import PaymentService
@@ -107,3 +108,11 @@ def admin_sync_payment(request, order_id: int):
             "order_status": updated_payment.order.status,
         }
     )
+
+
+@api_view(["POST"])
+@permission_classes([IsCheckin])
+def vendor_sync_pending_payments(request):
+    logger.info("Checkin bulk payment sync requested actor=%s", request.user.username)
+    result = PaymentService().sync_pending_payments()
+    return response.Response({"ok": True, **result})

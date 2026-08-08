@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import VendorShell from "../components/VendorShell";
 import { useVendorAuth } from "../contexts/VendorAuthContext";
 import { useQrScanner } from "../hooks/useQrScanner";
-import { manualCheckin, scanCheckin } from "../services/api";
+import { manualCheckin, scanCheckin, syncPendingPayments } from "../services/api";
 import { setPendingCardLink } from "../services/pendingCardLink";
 
 function SpinnerIcon() {
@@ -40,6 +40,8 @@ export default function VendorCheckinPage() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
   const [manualLoading, setManualLoading] = useState(false);
+  const [syncingPayments, setSyncingPayments] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
 
   const handleResult = (response: any) => {
     setResult(response);
@@ -84,6 +86,25 @@ export default function VendorCheckinPage() {
 
   const isSuccess = (r: any) => r?.result === "confirmed";
 
+  const handleSyncPayments = async () => {
+    setSyncingPayments(true);
+    setSyncMessage("");
+    try {
+      const { confirmed, checked } = await syncPendingPayments();
+      setSyncMessage(
+        confirmed > 0
+          ? `${confirmed} pedido${confirmed > 1 ? "s" : ""} confirmado${confirmed > 1 ? "s" : ""} agora.`
+          : checked > 0
+          ? "Nenhum pedido novo confirmado ainda."
+          : "Nenhum pedido pendente."
+      );
+    } catch {
+      setSyncMessage("Não foi possível atualizar os pedidos agora.");
+    } finally {
+      setSyncingPayments(false);
+    }
+  };
+
   return (
     <VendorShell vendor={vendor} onLogout={logout}>
       {result && (
@@ -112,6 +133,19 @@ export default function VendorCheckinPage() {
 
       {!result && (
         <>
+          <div className="card">
+            <h2>Pedidos comprados na hora</h2>
+            <p>Se alguém acabou de pagar na porta, atualize antes de tentar o check-in.</p>
+            <button
+              className="button button-secondary"
+              onClick={handleSyncPayments}
+              disabled={syncingPayments}
+            >
+              {syncingPayments ? <><SpinnerIcon /> Atualizando…</> : "Atualizar pedidos"}
+            </button>
+            {syncMessage && <p className="checkin-result-reason">{syncMessage}</p>}
+          </div>
+
           <div className="card">
             <h2>Câmera</h2>
             <div className="camera-wrap">

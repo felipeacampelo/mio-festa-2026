@@ -340,3 +340,33 @@ class PaymentService:
             payment.external_id,
         )
         return payment
+
+    def sync_pending_payments(self, within_hours: int = 24) -> dict:
+        # Usado pelo check-in pra "puxar" o status mais recente de pedidos
+        # comprados na hora, sem esperar o webhook chegar. Restrito as
+        # ultimas horas pra nao ficar varrendo pedidos antigos abandonados
+        # toda vez que alguem aperta o botao.
+        cutoff = timezone.now() - timezone.timedelta(hours=within_hours)
+        payments = Payment.objects.select_related("order").filter(
+            status=Payment.Status.PENDING,
+            order__status=Order.Status.PENDING,
+            order__created_at__gte=cutoff,
+        )
+        checked = 0
+        confirmed = 0
+        for payment in payments:
+            checked += 1
+            try:
+                updated = self.sync_payment_status(payment)
+            except Exception:
+                logger.exception(
+                    "Failed to sync pending payment during bulk sync payment_id=%s order_id=%s external_id=%s",
+                    payment.id,
+                    payment.order_id,
+                    payment.external_id,
+                )
+                continue
+            if updated.status == Payment.Status.CONFIRMED:
+                confirmed += 1
+        logger.info("Bulk pending payment sync finished checked=%s confirmed=%s", checked, confirmed)
+        return {"checked": checked, "confirmed": confirmed}

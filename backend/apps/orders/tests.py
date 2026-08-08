@@ -309,6 +309,25 @@ class PaymentAndCheckinTests(TestCase):
         self.assertEqual(self.order.status, Order.Status.PAID)
         self.assertEqual(self.ticket.status, Ticket.Status.ACTIVE)
 
+    @patch.object(AsaasService, "get_payment", return_value={"id": "pay_test", "status": "RECEIVED"})
+    def test_checkin_vendor_can_bulk_sync_pending_payments(self, _mock_get_payment):
+        self.client.force_authenticate(self.checkin_vendor.user)
+        response = self.client.post("/api/payments/vendor/sync-pending/", format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["checked"], 1)
+        self.assertEqual(response.data["confirmed"], 1)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.PAID)
+
+    def test_admin_cannot_bulk_sync_pending_payments(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post("/api/payments/vendor/sync-pending/", format="json")
+        self.assertEqual(response.status_code, 403)
+
+    def test_unauthenticated_cannot_bulk_sync_pending_payments(self):
+        response = self.client.post("/api/payments/vendor/sync-pending/", format="json")
+        self.assertEqual(response.status_code, 401)
+
     def test_admin_ticket_list_hides_pending_tickets_until_payment_confirmation(self):
         self.client.force_authenticate(self.admin)
 
