@@ -1,13 +1,14 @@
 from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, response
+from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes
 
 from apps.tickets.admin_views import paginate_queryset
 
 from . import services
 from .models import Card, CardTransaction, CardTransactionItem, Product, Vendor
-from .serializers import AdminCardListSerializer, ProductSerializer, VendorOptionSerializer
+from .serializers import AdminCardListSerializer, ProductSerializer, VendorOptionSerializer, VendorSerializer
 
 
 @api_view(["GET"])
@@ -87,6 +88,32 @@ def admin_return_card(request, uid):
 def admin_seller_list(request):
     sellers = Vendor.objects.filter(role=Vendor.Role.SELLER).order_by("display_name")
     return response.Response(VendorOptionSerializer(sellers, many=True).data)
+
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAdminUser])
+def admin_vendor_list(request):
+    vendors = Vendor.objects.order_by("role", "display_name")
+    return response.Response(VendorSerializer(vendors, many=True).data)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAdminUser])
+def admin_vendor_impersonate(request, pk):
+    # Permite o admin entrar direto num vendedor/caixa/checkin ja cadastrado
+    # sem saber a senha - util pra suporte durante o evento (celular travou,
+    # esqueceu a senha etc). Reaproveita a conta real (e o catalogo real, no
+    # caso de vendedor) em vez de criar uma conta fantasma so pro admin.
+    vendor = get_object_or_404(Vendor, pk=pk)
+    if not vendor.is_active:
+        return response.Response({"detail": "Vendedor inativo."}, status=400)
+    token, _ = Token.objects.get_or_create(user=vendor.user)
+    return response.Response(
+        {
+            "token": token.key,
+            "vendor": {"id": vendor.id, "display_name": vendor.display_name, "role": vendor.role},
+        }
+    )
 
 
 @api_view(["GET", "POST"])

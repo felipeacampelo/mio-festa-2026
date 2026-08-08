@@ -10,6 +10,7 @@ const navGroups = [
       { to: "/admin/pedidos", label: "Pedidos", end: false },
       { to: "/admin/cartoes", label: "Cartões", end: false },
       { to: "/admin/produtos", label: "Produtos", end: false },
+      { to: "/admin/acesso-vendedor", label: "Acessar como vendedor", end: false },
     ],
   },
   {

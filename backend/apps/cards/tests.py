@@ -479,6 +479,32 @@ class AdminCardReportingTests(CardsApiTestCase):
         response = self.client.get("/api/admin/cards/reconciliation/")
         self.assertEqual(Decimal(response.data["sold_by_vendor"][0]["total"]), Decimal("22.00"))
 
+    def test_admin_can_list_all_vendors_across_roles(self):
+        self.admin_login()
+        response = self.client.get("/api/admin/cards/vendors/")
+        roles = {v["role"] for v in response.data}
+        self.assertEqual(roles, {"seller", "recharge", "checkin"})
+
+    def test_admin_can_impersonate_vendor_and_use_returned_token(self):
+        self.admin_login()
+        response = self.client.post(f"/api/admin/cards/vendors/{self.seller.id}/impersonate/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["vendor"]["role"], "seller")
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {response.data['token']}")
+        me = self.client.get("/api/cards/me/")
+        self.assertEqual(me.data["id"], self.seller.id)
+
+    def test_cannot_impersonate_inactive_vendor(self):
+        inactive = make_vendor("inativo2", Vendor.Role.SELLER, is_active=False)
+        self.admin_login()
+        response = self.client.post(f"/api/admin/cards/vendors/{inactive.id}/impersonate/")
+        self.assertEqual(response.status_code, 400)
+
+    def test_vendor_token_cannot_impersonate(self):
+        self.login("vendedor1")
+        response = self.client.post(f"/api/admin/cards/vendors/{self.recharge.id}/impersonate/")
+        self.assertEqual(response.status_code, 403)
+
 
 class ProductAdminTests(CardsApiTestCase):
     def setUp(self):

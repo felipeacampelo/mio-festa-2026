@@ -3,6 +3,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { VendorAuthProvider } from "./contexts/VendorAuthContext";
 import AdminCardsPage from "./pages/AdminCardsPage";
 import AdminProductsPage from "./pages/AdminProductsPage";
+import AdminVendorsPage from "./pages/AdminVendorsPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminEventPage from "./pages/AdminEventPage";
 import AdminLoginPage from "./pages/AdminLoginPage";
@@ -64,6 +65,14 @@ export default function App() {
           element={
             <PrivateRoute>
               <AdminProductsPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/acesso-vendedor"
+          element={
+            <PrivateRoute>
+              <AdminVendorsPage />
             </PrivateRoute>
           }
         />

@@ -19,6 +19,12 @@ class VendorOptionSerializer(serializers.ModelSerializer):
         fields = ["id", "display_name", "is_active"]
 
 
+class VendorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Vendor
+        fields = ["id", "display_name", "role", "is_active"]
+
+
 class CardAmountSerializer(serializers.Serializer):
     amount = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0.01"))
     idempotency_key = serializers.CharField(max_length=64)

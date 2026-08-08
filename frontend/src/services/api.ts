@@ -220,6 +220,7 @@ export type Vendor = {
   id: number;
   display_name: string;
   role: "seller" | "recharge" | "checkin";
+  is_active?: boolean;
 };
 
 export type Card = {
@@ -396,6 +397,16 @@ export async function getAdminProducts(search = "", page = 1, pageSize = 50) {
 
 export async function getAdminSellers() {
   const response = await api.get<SellerOption[]>("/admin/cards/sellers/");
+  return response.data;
+}
+
+export async function getAdminVendors() {
+  const response = await api.get<Vendor[]>("/admin/cards/vendors/");
+  return response.data;
+}
+
+export async function impersonateVendor(vendorId: number) {
+  const response = await api.post<{ token: string; vendor: Vendor }>(`/admin/cards/vendors/${vendorId}/impersonate/`);
   return response.data;
 }
 
