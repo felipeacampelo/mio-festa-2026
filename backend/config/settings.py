@@ -1,10 +1,12 @@
 from pathlib import Path
 import os
+import sys
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+RUNNING_TESTS = "test" in sys.argv
 
 
 def _split_csv(value: str) -> list[str]:
@@ -114,6 +116,14 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.AllowAny",
     ],
+    # Escopos aplicados so nas views de login (throttle_scope="login"), nao
+    # globalmente - tentativa de forca bruta de senha de vendedor/admin. Alto
+    # durante os testes porque o cache de throttle (LocMemCache) persiste
+    # entre testes do mesmo processo, e varios testes fazem login repetidas
+    # vezes.
+    "DEFAULT_THROTTLE_RATES": {
+        "login": "1000/min" if RUNNING_TESTS else "10/min",
+    },
 }
 
 ASAAS_ENV = os.getenv("ASAAS_ENV", "sandbox").lower()

@@ -160,6 +160,25 @@ class AsaasService:
         return self._request("GET", f"payments/{external_id}")
 
 
+def _safe_send_order_paid_emails(order: Order) -> None:
+    # O envio de e-mail roda dentro do mesmo transaction.atomic que confirma
+    # o pagamento. Sem esse try/except, uma falha de rede/timeout no Resend
+    # (fora do nosso controle) derrubava a excecao pra cima e desfazia a
+    # confirmacao inteira - o pagamento voltava a "pendente" no banco mesmo
+    # tendo sido de fato confirmado pelo Asaas, e so o "Sincronizar" manual
+    # (que roda de novo, sem passar por aqui de novo se ja estiver
+    # confirmado) resolvia. Pagamento confirmado nao pode depender de
+    # e-mail entregue.
+    try:
+        send_order_paid_emails(order)
+    except Exception:
+        logger.exception(
+            "Failed to send order paid emails, payment confirmation was not affected order_id=%s public_id=%s",
+            order.id,
+            order.public_id,
+        )
+
+
 class PaymentService:
     def __init__(self):
         self.asaas = AsaasService()
@@ -218,7 +237,7 @@ class PaymentService:
             order.id,
             order.tickets.count(),
         )
-        send_order_paid_emails(order)
+        _safe_send_order_paid_emails(order)
         return order
 
     def _apply_expired_status(self, payment: Payment, payload: Optional[dict] = None) -> Payment:
@@ -283,7 +302,7 @@ class PaymentService:
             payment.id,
             order.tickets.count(),
         )
-        send_order_paid_emails(order)
+        _safe_send_order_paid_emails(order)
         return payment
 
     @transaction.atomic

@@ -4,9 +4,10 @@ from django.contrib.auth import authenticate
 from django.db.models import Q
 from rest_framework import permissions, response, status
 from rest_framework.authtoken.models import Token
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.exceptions import AuthenticationFailed
 
+from apps.core.throttling import LoginRateThrottle
 from apps.tickets.models import Ticket
 
 from . import services
@@ -26,6 +27,7 @@ from .serializers import (
 
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([LoginRateThrottle])
 def vendor_login(request):
     serializer = VendorLoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)

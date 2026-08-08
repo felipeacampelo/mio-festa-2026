@@ -246,6 +246,19 @@ class PaymentAndCheckinTests(TestCase):
 
         self.assertEqual(mock_send.call_count, 1)
 
+    def test_confirm_payment_persists_even_if_email_sending_fails(self):
+        # O Resend caindo/dando timeout nao pode desfazer uma confirmacao de
+        # pagamento que ja aconteceu de verdade no Asaas.
+        with patch("apps.payments.services.send_order_paid_emails", side_effect=Exception("resend indisponivel")):
+            PaymentService().confirm_payment(self.payment, {"manual": True})
+
+        self.ticket.refresh_from_db()
+        self.order.refresh_from_db()
+        self.payment.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.ACTIVE)
+        self.assertEqual(self.order.status, Order.Status.PAID)
+        self.assertEqual(self.payment.status, Payment.Status.CONFIRMED)
+
     def test_checkin_is_idempotent(self):
         PaymentService().confirm_payment(self.payment, {"manual": True})
         from apps.tickets.services import build_ticket_token

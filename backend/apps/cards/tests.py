@@ -3,12 +3,14 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.db import connections
 from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.cards.models import Card, CardTransaction, CardTransactionItem, Product, Vendor
+from apps.core.throttling import LoginRateThrottle
 from apps.events.models import EventSettings
 from apps.orders.models import Order
 from apps.tickets.models import Ticket
@@ -97,6 +99,26 @@ class VendorLoginTests(CardsApiTestCase):
             "/api/cards/login/", {"username": "inativo", "password": "senha123"}, format="json"
         )
         self.assertEqual(response.status_code, 401)
+
+    def test_login_is_rate_limited_after_repeated_attempts(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+        # SimpleRateThrottle.THROTTLE_RATES e um atributo de classe fixado na
+        # importacao do modulo do DRF - override_settings(REST_FRAMEWORK=...)
+        # nao o atualiza depois disso. Sobrescreve direto na classe pra
+        # exercitar o limite sem depender do rate real de producao.
+        original_rates = LoginRateThrottle.THROTTLE_RATES
+        LoginRateThrottle.THROTTLE_RATES = {"login": "3/min"}
+        self.addCleanup(setattr, LoginRateThrottle, "THROTTLE_RATES", original_rates)
+        for _ in range(3):
+            response = self.client.post(
+                "/api/cards/login/", {"username": "vendedor1", "password": "errada"}, format="json"
+            )
+            self.assertEqual(response.status_code, 401)
+        response = self.client.post(
+            "/api/cards/login/", {"username": "vendedor1", "password": "errada"}, format="json"
+        )
+        self.assertEqual(response.status_code, 429)
 
     def test_admin_user_cannot_login_as_vendor(self):
         User = get_user_model()

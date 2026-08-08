@@ -1,13 +1,16 @@
 from rest_framework import permissions, response, status
 from rest_framework.authtoken.models import Token
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.exceptions import AuthenticationFailed
 
 from django.contrib.auth import authenticate
 
+from apps.core.throttling import LoginRateThrottle
+
 
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([LoginRateThrottle])
 def admin_login(request):
     user = authenticate(username=request.data.get("username"), password=request.data.get("password"))
     if not user or not user.is_staff:
