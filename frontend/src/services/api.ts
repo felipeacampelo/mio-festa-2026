@@ -206,6 +206,11 @@ export async function transferTicket(ticketId: number, payload: { participant_na
   return response.data;
 }
 
+export async function undoCheckin(ticketId: number) {
+  const response = await api.post(`/admin/tickets/${ticketId}/undo-checkin/`);
+  return response.data;
+}
+
 export async function scanCheckin(qrToken: string) {
   const response = await vendorApi.post("/checkin/scan/", { qr_token: qrToken });
   return response.data;

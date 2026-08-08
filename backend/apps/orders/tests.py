@@ -270,6 +270,43 @@ class PaymentAndCheckinTests(TestCase):
         self.assertEqual(first.data["result"], "confirmed")
         self.assertEqual(second.data["result"], "already_checked_in")
 
+    def test_admin_can_undo_check_in(self):
+        from apps.tickets.models import TicketAuditLog
+
+        PaymentService().confirm_payment(self.payment, {"manual": True})
+        self.client.force_authenticate(self.checkin_vendor.user)
+        from apps.tickets.services import build_ticket_token
+
+        token = build_ticket_token(self.ticket)
+        self.client.post("/api/checkin/scan/", {"qr_token": token}, format="json")
+
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(f"/api/admin/tickets/{self.ticket.id}/undo-checkin/", format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], Ticket.Status.ACTIVE)
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.ACTIVE)
+        self.assertIsNone(self.ticket.checked_in_at)
+        self.assertIsNone(self.ticket.checked_in_by)
+        self.assertTrue(
+            TicketAuditLog.objects.filter(ticket=self.ticket, action=TicketAuditLog.Action.CHECKIN_UNDONE).exists()
+        )
+
+        # Depois de desfeito, o ingresso pode ser escaneado de novo normalmente.
+        self.client.force_authenticate(self.checkin_vendor.user)
+        again = self.client.post("/api/checkin/scan/", {"qr_token": token}, format="json")
+        self.assertEqual(again.data["result"], "confirmed")
+
+    def test_undo_check_in_rejected_when_not_checked_in(self):
+        PaymentService().confirm_payment(self.payment, {"manual": True})
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(f"/api/admin/tickets/{self.ticket.id}/undo-checkin/", format="json")
+        self.assertEqual(response.status_code, 400)
+
+    def test_non_admin_cannot_undo_check_in(self):
+        response = self.client.post(f"/api/admin/tickets/{self.ticket.id}/undo-checkin/", format="json")
+        self.assertEqual(response.status_code, 401)
+
     def test_admin_without_checkin_role_cannot_scan(self):
         from apps.tickets.services import build_ticket_token
 

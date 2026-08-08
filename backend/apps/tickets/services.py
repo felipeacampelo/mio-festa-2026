@@ -159,3 +159,14 @@ def check_in_ticket(ticket: Ticket, actor):
     ticket.save(update_fields=["status", "checked_in_at", "checked_in_by", "updated_at"])
     append_audit(ticket, TicketAuditLog.Action.CHECKED_IN, note="Entrada confirmada.", actor=actor)
     return "confirmed"
+
+
+def undo_check_in(ticket: Ticket, actor):
+    if ticket.status != Ticket.Status.USED:
+        return "not_checked_in"
+    ticket.status = Ticket.Status.ACTIVE
+    ticket.checked_in_at = None
+    ticket.checked_in_by = None
+    ticket.save(update_fields=["status", "checked_in_at", "checked_in_by", "updated_at"])
+    append_audit(ticket, TicketAuditLog.Action.CHECKIN_UNDONE, note="Check-in desfeito manualmente.", actor=actor)
+    return "undone"

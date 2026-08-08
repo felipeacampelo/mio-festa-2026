@@ -47,6 +47,7 @@ class TicketAuditLog(models.Model):
         REISSUED = "reissued", "Reemitido"
         CHECKED_IN = "checked_in", "Check-in"
         RESENT = "resent", "Reenviado"
+        CHECKIN_UNDONE = "checkin_undone", "Check-in desfeito"
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="audit_logs")
     action = models.CharField(max_length=20, choices=Action.choices)

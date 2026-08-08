@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import AdminShell from "../components/AdminShell";
-import { editTicket, getAdminOrders, getAdminTickets, resendTickets, syncOrderPayment, transferTicket } from "../services/api";
+import { editTicket, getAdminOrders, getAdminTickets, resendTickets, syncOrderPayment, transferTicket, undoCheckin } from "../services/api";
 
 function SpinnerIcon() {
   return (
@@ -121,6 +121,7 @@ export default function AdminOrdersPage() {
   const [resending, setResending] = useState<Record<number, boolean>>({});
   const [resent, setResent] = useState<Record<number, boolean>>({});
   const [syncing, setSyncing] = useState<Record<number, boolean>>({});
+  const [undoingCheckin, setUndoingCheckin] = useState<Record<number, boolean>>({});
 
   const [ticketModal, setTicketModal] = useState<TicketModal | null>(null);
   const [modalName, setModalName] = useState("");
@@ -204,6 +205,19 @@ export default function AdminOrdersPage() {
       await load();
     } finally {
       setSyncing((current) => ({ ...current, [orderId]: false }));
+    }
+  };
+
+  const handleUndoCheckin = async (ticket: any) => {
+    if (!window.confirm(`Remover o check-in de ${ticket.participant_name}? A pessoa vai poder entrar de novo.`)) {
+      return;
+    }
+    setUndoingCheckin((current) => ({ ...current, [ticket.id]: true }));
+    try {
+      await undoCheckin(ticket.id);
+      await load();
+    } finally {
+      setUndoingCheckin((current) => ({ ...current, [ticket.id]: false }));
     }
   };
 
@@ -361,6 +375,15 @@ export default function AdminOrdersPage() {
                       <button className="admin-text-button" onClick={() => openModal("transfer", ticket)}>
                         Transferir
                       </button>
+                      {ticket.status === "used" && (
+                        <button
+                          className="admin-text-button"
+                          disabled={undoingCheckin[ticket.id]}
+                          onClick={() => handleUndoCheckin(ticket)}
+                        >
+                          {undoingCheckin[ticket.id] ? "Removendo..." : "Remover check-in"}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

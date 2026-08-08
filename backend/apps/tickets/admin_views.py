@@ -9,7 +9,7 @@ from apps.notifications.services import safe_send_order_paid_emails, safe_send_t
 from apps.orders.models import Order
 from apps.tickets.models import Ticket, TicketAuditLog
 from apps.tickets.serializers import AdminTicketSerializer, AdminTicketTransferSerializer, AdminTicketUpdateSerializer
-from apps.tickets.services import append_audit, reissue_ticket
+from apps.tickets.services import append_audit, reissue_ticket, undo_check_in
 
 
 def _ticket_not_editable_response(ticket):
@@ -180,3 +180,15 @@ def transfer_ticket(request, ticket_id: int):
     )
     safe_send_ticket_reissued_email(replacement, ticket.order.buyer_email)
     return response.Response(AdminTicketSerializer(replacement).data)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAdminUser])
+def admin_undo_check_in(request, ticket_id: int):
+    ticket = get_object_or_404(Ticket, pk=ticket_id)
+    result = undo_check_in(ticket, actor=request.user)
+    if result == "not_checked_in":
+        return response.Response(
+            {"detail": "Este ingresso nao esta com check-in feito."}, status=status.HTTP_400_BAD_REQUEST
+        )
+    return response.Response(AdminTicketSerializer(ticket).data)

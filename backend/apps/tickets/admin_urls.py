@@ -4,6 +4,7 @@ from .admin_views import (
     AdminOrderListView,
     AdminTicketListView,
     admin_stats,
+    admin_undo_check_in,
     edit_ticket,
     resend_order_tickets,
     transfer_ticket,
@@ -17,4 +18,5 @@ urlpatterns = [
     path("tickets/", AdminTicketListView.as_view(), name="admin-ticket-list"),
     path("tickets/<int:ticket_id>/", edit_ticket, name="admin-ticket-edit"),
     path("tickets/<int:ticket_id>/transfer/", transfer_ticket, name="admin-ticket-transfer"),
+    path("tickets/<int:ticket_id>/undo-checkin/", admin_undo_check_in, name="admin-ticket-undo-checkin"),
 ]
