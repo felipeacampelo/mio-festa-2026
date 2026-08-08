@@ -1,4 +1,5 @@
 import base64
+import logging
 from pathlib import Path
 from typing import Iterable
 import requests
@@ -8,6 +9,8 @@ from django.core.mail import EmailMultiAlternatives
 from django.utils import timezone
 
 from apps.tickets.services import build_tickets_pdf_bytes
+
+logger = logging.getLogger("apps.notifications")
 
 NAVY = "#1C1A3E"
 NAVY_LIGHT = "#2D2856"
@@ -182,3 +185,28 @@ def send_ticket_reissued_email(ticket, buyer_email: str) -> None:
         [buyer_email, ticket.participant_email],
         attachments=[("ingresso.pdf", build_tickets_pdf_bytes([ticket]), "application/pdf")],
     )
+
+
+def safe_send_ticket_reissued_email(ticket, buyer_email: str) -> None:
+    # O ingresso ja foi reemitido/transferido e salvo no banco antes dessa
+    # chamada - uma falha de rede/timeout no envio do e-mail nao pode virar
+    # um 500 pro admin numa acao que, na pratica, ja deu certo.
+    try:
+        send_ticket_reissued_email(ticket, buyer_email)
+    except Exception:
+        logger.exception(
+            "Failed to send ticket reissued email ticket_id=%s buyer_email=%s",
+            ticket.id,
+            buyer_email,
+        )
+
+
+def safe_send_order_paid_emails(order) -> None:
+    try:
+        send_order_paid_emails(order)
+    except Exception:
+        logger.exception(
+            "Failed to send order paid emails order_id=%s public_id=%s",
+            order.id,
+            order.public_id,
+        )

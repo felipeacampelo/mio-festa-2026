@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, response, status
 from rest_framework.decorators import api_view, permission_classes
 
-from apps.notifications.services import send_order_paid_emails, send_ticket_reissued_email
+from apps.notifications.services import safe_send_order_paid_emails, safe_send_ticket_reissued_email
 from apps.orders.models import Order
 from apps.tickets.models import Ticket, TicketAuditLog
 from apps.tickets.serializers import AdminTicketSerializer, AdminTicketTransferSerializer, AdminTicketUpdateSerializer
@@ -132,7 +132,7 @@ def resend_order_tickets(request, order_id: int):
             {"detail": "Ingressos so podem ser reenviados apos pagamento confirmado."},
             status=status.HTTP_400_BAD_REQUEST,
         )
-    send_order_paid_emails(order)
+    safe_send_order_paid_emails(order)
     for ticket in order.tickets.all():
         append_audit(ticket, TicketAuditLog.Action.RESENT, note="Ingressos reenviados manualmente.", actor=request.user)
     return response.Response({"ok": True})
@@ -156,7 +156,7 @@ def edit_ticket(request, ticket_id: int):
         actor=request.user,
         action=TicketAuditLog.Action.EDITED,
     )
-    send_ticket_reissued_email(replacement, ticket.order.buyer_email)
+    safe_send_ticket_reissued_email(replacement, ticket.order.buyer_email)
     return response.Response(AdminTicketSerializer(replacement).data)
 
 
@@ -178,5 +178,5 @@ def transfer_ticket(request, ticket_id: int):
         actor=request.user,
         action=TicketAuditLog.Action.TRANSFERRED,
     )
-    send_ticket_reissued_email(replacement, ticket.order.buyer_email)
+    safe_send_ticket_reissued_email(replacement, ticket.order.buyer_email)
     return response.Response(AdminTicketSerializer(replacement).data)

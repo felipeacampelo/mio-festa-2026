@@ -349,6 +349,34 @@ class PaymentAndCheckinTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["detail"], "Ingressos so podem ser reenviados apos pagamento confirmado.")
 
+    def test_resend_tickets_succeeds_and_logs_audit_even_if_email_fails(self):
+        from apps.tickets.models import TicketAuditLog
+
+        PaymentService().confirm_payment(self.payment, {"manual": True})
+        self.client.force_authenticate(self.admin)
+        with patch(
+            "apps.notifications.services.send_order_paid_emails", side_effect=Exception("resend indisponivel")
+        ):
+            response = self.client.post(f"/api/admin/orders/{self.order.id}/resend-tickets/", format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            TicketAuditLog.objects.filter(ticket=self.ticket, action=TicketAuditLog.Action.RESENT).exists()
+        )
+
+    def test_edit_ticket_persists_even_if_email_sending_fails(self):
+        PaymentService().confirm_payment(self.payment, {"manual": True})
+        self.client.force_authenticate(self.admin)
+        with patch(
+            "apps.notifications.services.send_ticket_reissued_email", side_effect=Exception("resend indisponivel")
+        ):
+            response = self.client.patch(
+                f"/api/admin/tickets/{self.ticket.id}/",
+                {"participant_name": "Novo Nome", "participant_email": "novo@example.com"},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["participant_name"], "Novo Nome")
+
     def test_admin_force_confirm_is_disabled_by_default(self):
         self.client.force_authenticate(self.admin)
         response = self.client.post(f"/api/payments/admin/orders/{self.order.id}/confirm/", format="json")
