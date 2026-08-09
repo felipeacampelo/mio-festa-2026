@@ -378,9 +378,9 @@ export async function creditCard(uid: string, amount: string, idempotencyKey: st
   return response.data;
 }
 
-export async function getAdminCards(search = "", page = 1, pageSize = 50) {
+export async function getAdminCards(search = "", page = 1, pageSize = 50, excludeReturned = false) {
   const response = await api.get<PaginatedResponse<AdminCard>>("/admin/cards/", {
-    params: { search, page, page_size: pageSize },
+    params: { search, page, page_size: pageSize, exclude_returned: excludeReturned ? "true" : undefined },
   });
   return response.data;
 }

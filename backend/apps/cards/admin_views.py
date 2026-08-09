@@ -22,6 +22,8 @@ def admin_card_list(request):
         if digits:
             filters |= Q(ticket__participant_document__icontains=digits)
         cards = cards.filter(filters)
+    if request.query_params.get("exclude_returned") == "true":
+        cards = cards.exclude(status=Card.Status.RETURNED)
     return paginate_queryset(request, cards, AdminCardListSerializer)
 
 

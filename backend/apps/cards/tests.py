@@ -479,6 +479,23 @@ class AdminCardReportingTests(CardsApiTestCase):
         response = self.client.post("/api/admin/cards/BLK1/unblock/", {}, format="json")
         self.assertEqual(response.data["status"], "active")
 
+    def test_admin_card_list_can_exclude_returned(self):
+        _, ticket1 = make_order_and_ticket(participant_name="A")
+        _, ticket2 = make_order_and_ticket(participant_name="B")
+        Card.objects.create(uid="RET-EXC1", ticket=ticket1, balance=Decimal("0.00"), status=Card.Status.RETURNED)
+        Card.objects.create(uid="RET-EXC2", ticket=ticket2, balance=Decimal("5.00"), status=Card.Status.ACTIVE)
+        self.admin_login()
+
+        response = self.client.get("/api/admin/cards/", {"exclude_returned": "true"})
+        uids = {c["uid"] for c in response.data["results"]}
+        self.assertIn("RET-EXC2", uids)
+        self.assertNotIn("RET-EXC1", uids)
+
+        response = self.client.get("/api/admin/cards/")
+        uids = {c["uid"] for c in response.data["results"]}
+        self.assertIn("RET-EXC1", uids)
+        self.assertIn("RET-EXC2", uids)
+
     def test_reconciliation_sold_by_vendor_matches_debit_sum_and_excludes_failed(self):
         _, ticket1 = make_order_and_ticket(participant_name="A")
         _, ticket2 = make_order_and_ticket(participant_name="B")

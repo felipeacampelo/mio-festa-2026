@@ -33,12 +33,13 @@ export default function AdminCardsPage() {
   const [cards, setCards] = useState<AdminCard[]>([]);
   const [reconciliation, setReconciliation] = useState<CardReconciliation | null>(null);
   const [search, setSearch] = useState("");
+  const [hideReturned, setHideReturned] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busyUid, setBusyUid] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
-    Promise.all([getAdminCards(search), getCardReconciliation()])
+    Promise.all([getAdminCards(search, 1, 50, hideReturned), getCardReconciliation()])
       .then(([cardsResponse, reconciliationResponse]) => {
         setCards(cardsResponse.results);
         setReconciliation(reconciliationResponse);
@@ -51,7 +52,7 @@ export default function AdminCardsPage() {
     const handle = setTimeout(load, 300);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]);
+  }, [search, hideReturned]);
 
   const handleAction = async (action: (uid: string) => Promise<AdminCard>, uid: string) => {
     setBusyUid(uid);
@@ -135,13 +136,23 @@ export default function AdminCardsPage() {
           </div>
         )}
 
-        <div className="field" style={{ maxWidth: "320px", marginBottom: "1rem" }}>
-          <input
-            type="text"
-            placeholder="Buscar por UID, nome ou CPF…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div style={{ display: "flex", alignItems: "center", gap: "1.25rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+          <div className="field" style={{ maxWidth: "320px", marginBottom: 0 }}>
+            <input
+              type="text"
+              placeholder="Buscar por UID, nome ou CPF…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={hideReturned}
+              onChange={(e) => setHideReturned(e.target.checked)}
+            />
+            Ocultar devolvidos
+          </label>
         </div>
 
         <div className="admin-table-wrap">
