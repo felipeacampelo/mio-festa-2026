@@ -63,6 +63,12 @@ export default function AdminCardsPage() {
     }
   };
 
+  const sumTotals = (rows: Array<{ total: string }>) =>
+    rows.reduce((acc, row) => acc + Number(row.total || 0), 0);
+
+  const totalRecharged = reconciliation ? sumTotals(reconciliation.recharge_by_vendor) : 0;
+  const totalSpent = reconciliation ? sumTotals(reconciliation.sold_by_vendor) : 0;
+
   return (
     <AdminShell>
       <section className="page admin-page">
@@ -74,11 +80,36 @@ export default function AdminCardsPage() {
         {reconciliation && (
           <div className="admin-grid" style={{ marginBottom: "1.5rem" }}>
             <div className="card">
-              <h2>Saldo em aberto</h2>
-              <p style={{ fontSize: "1.5rem", fontWeight: 700 }}>{formatCurrency(reconciliation.outstanding_balance)}</p>
-              <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>
+              <h2>Resumo financeiro</h2>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <span>Total recarregado</span>
+                  <strong>{formatCurrency(totalRecharged)}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <span>Total gasto</span>
+                  <strong>{formatCurrency(totalSpent)}</strong>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    borderTop: "1px solid var(--border)",
+                    paddingTop: "0.5rem",
+                    marginTop: "0.25rem",
+                  }}
+                >
+                  <span>Saldo restante em cartões</span>
+                  <strong style={{ fontSize: "1.3rem" }}>{formatCurrency(reconciliation.outstanding_balance)}</strong>
+                </div>
+              </div>
+              <p style={{ fontSize: "0.85rem", opacity: 0.75, marginTop: "0.75rem" }}>
                 {reconciliation.status_counts.active || 0} ativos, {reconciliation.status_counts.blocked || 0} bloqueados,{" "}
                 {reconciliation.status_counts.returned || 0} devolvidos
+              </p>
+              <p style={{ fontSize: "0.78rem", opacity: 0.65, marginTop: "0.4rem" }}>
+                O saldo restante também inclui o valor pré-carregado de ingressos antecipados, não só recargas feitas no caixa.
               </p>
             </div>
             <div className="card">
