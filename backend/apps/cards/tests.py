@@ -523,25 +523,28 @@ class AdminCardReportingTests(CardsApiTestCase):
         _, ticket2 = make_order_and_ticket(participant_name="B")
         card1 = Card.objects.create(uid="P1", ticket=ticket1, balance=Decimal("50.00"))
         card2 = Card.objects.create(uid="P2", ticket=ticket2, balance=Decimal("50.00"))
+        product = make_product(self.seller, name="Agua", price=Decimal("5.00"))
         txn1 = CardTransaction.objects.create(
             card=card1, type=CardTransaction.Type.DEBIT, amount=Decimal("10.00"),
             balance_after=Decimal("40.00"), vendor=self.seller,
         )
         CardTransactionItem.objects.create(
-            transaction=txn1, product_name="Agua", unit_price=Decimal("5.00"), quantity=2
+            transaction=txn1, product=product, product_name="Agua", unit_price=Decimal("5.00"), quantity=2
         )
         txn2 = CardTransaction.objects.create(
             card=card2, type=CardTransaction.Type.DEBIT, amount=Decimal("5.00"),
             balance_after=Decimal("45.00"), vendor=self.seller,
         )
         CardTransactionItem.objects.create(
-            transaction=txn2, product_name="Agua", unit_price=Decimal("5.00"), quantity=1
+            transaction=txn2, product=product, product_name="Agua", unit_price=Decimal("5.00"), quantity=1
         )
         self.admin_login()
         response = self.client.get("/api/admin/cards/reconciliation/")
         row = next(r for r in response.data["sold_by_product"] if r["product_name"] == "Agua")
         self.assertEqual(row["quantity"], 3)
         self.assertEqual(Decimal(row["total"]), Decimal("15.00"))
+        self.assertEqual(row["vendor_id"], self.seller.id)
+        self.assertEqual(row["vendor_name"], self.seller.display_name)
 
     def test_admin_can_list_all_vendors_across_roles(self):
         self.admin_login()

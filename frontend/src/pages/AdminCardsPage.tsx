@@ -36,6 +36,7 @@ export default function AdminCardsPage() {
   const [hideReturned, setHideReturned] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busyUid, setBusyUid] = useState<string | null>(null);
+  const [productVendorFilter, setProductVendorFilter] = useState("");
 
   const load = () => {
     setLoading(true);
@@ -69,6 +70,21 @@ export default function AdminCardsPage() {
 
   const totalRecharged = reconciliation ? sumTotals(reconciliation.recharge_by_vendor) : 0;
   const totalSpent = reconciliation ? sumTotals(reconciliation.sold_by_vendor) : 0;
+
+  const productVendorOptions = (() => {
+    const seen = new Map<string, string>();
+    (reconciliation?.sold_by_product || []).forEach((row) => {
+      const key = row.vendor_id != null ? String(row.vendor_id) : "sem-vendedor";
+      if (!seen.has(key)) seen.set(key, row.vendor_name || "Sem vendedor");
+    });
+    return Array.from(seen, ([id, name]) => ({ id, name }));
+  })();
+
+  const productsForSelectedVendor = (reconciliation?.sold_by_product || []).filter((row) => {
+    if (!productVendorFilter) return true;
+    const key = row.vendor_id != null ? String(row.vendor_id) : "sem-vendedor";
+    return key === productVendorFilter;
+  });
 
   return (
     <AdminShell>
@@ -134,14 +150,33 @@ export default function AdminCardsPage() {
               ))}
             </div>
             <div className="card">
-              <h2>Vendas por produto</h2>
-              {reconciliation.sold_by_product.length === 0 && <p>Nenhuma venda registrada ainda.</p>}
-              {reconciliation.sold_by_product.map((row) => (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", marginBottom: "var(--sp-4)", paddingBottom: "var(--sp-4)", borderBottom: "1px solid var(--border)" }}>
+                <h2 style={{ margin: 0, padding: 0, border: "none" }}>Vendas por produto</h2>
+                {productVendorOptions.length > 0 && (
+                  <select
+                    value={productVendorFilter}
+                    onChange={(e) => setProductVendorFilter(e.target.value)}
+                    style={{ maxWidth: "180px" }}
+                  >
+                    <option value="">Todos os vendedores</option>
+                    {productVendorOptions.map((v) => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              {productsForSelectedVendor.length === 0 && <p>Nenhuma venda registrada ainda.</p>}
+              {productsForSelectedVendor.map((row) => (
                 <div
-                  key={row.product_name}
+                  key={`${row.vendor_id ?? "sem-vendedor"}-${row.product_name}`}
                   style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem" }}
                 >
-                  <span>{row.product_name}</span>
+                  <span>
+                    {row.product_name}
+                    {!productVendorFilter && (
+                      <span style={{ opacity: 0.6, fontSize: "0.8rem" }}> — {row.vendor_name || "Sem vendedor"}</span>
+                    )}
+                  </span>
                   <span style={{ display: "flex", gap: "0.75rem" }}>
                     <span style={{ opacity: 0.7 }}>{row.quantity}x</span>
                     <strong>{formatCurrency(row.total)}</strong>

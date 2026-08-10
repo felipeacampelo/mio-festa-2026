@@ -51,12 +51,13 @@ def admin_card_reconciliation(request):
     status_counts = {
         choice_value: Card.objects.filter(status=choice_value).count() for choice_value, _ in Card.Status.choices
     }
-    # Agrupa por product_name (snapshot), nao pela FK de Product - assim
-    # continua contando itens vendidos mesmo se o produto foi excluido
-    # depois, e o preco usado e o congelado no momento da venda de cada
-    # item, nao o preco atual do produto.
+    # Agrupa por product_name (snapshot) + vendedor do produto, nao so pela
+    # FK de Product - assim continua contando itens vendidos mesmo se o
+    # produto foi excluido depois (vendor fica nulo nesse caso), e o preco
+    # usado e o congelado no momento da venda de cada item, nao o preco
+    # atual do produto.
     sold_by_product = list(
-        CardTransactionItem.objects.values("product_name")
+        CardTransactionItem.objects.values("product_name", "product__vendor_id", "product__vendor__display_name")
         # Duas chamadas .annotate() separadas de proposito: anotar "quantity"
         # e "total" (que usa F("quantity")) na MESMA chamada faz o Django
         # resolver o F() contra o alias "quantity" ja anotado (um Sum), nao
@@ -67,8 +68,18 @@ def admin_card_reconciliation(request):
             )
         )
         .annotate(quantity=Sum("quantity"))
-        .order_by("-quantity")
+        .order_by("product__vendor__display_name", "-quantity")
     )
+    sold_by_product = [
+        {
+            "product_name": row["product_name"],
+            "vendor_id": row["product__vendor_id"],
+            "vendor_name": row["product__vendor__display_name"],
+            "quantity": row["quantity"],
+            "total": row["total"],
+        }
+        for row in sold_by_product
+    ]
     return response.Response(
         {
             "recharge_by_vendor": by_vendor,
