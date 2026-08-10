@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import AdminShell from "../components/AdminShell";
-import { EventSettings, getAdminEvent, getAdminStats } from "../services/api";
+import { CardReconciliation, EventSettings, getAdminEvent, getAdminStats, getCardReconciliation } from "../services/api";
 
 function IconOrders() {
   return (
@@ -38,8 +38,81 @@ function IconCheckin() {
   );
 }
 
+function IconWallet() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5"/>
+      <path d="M21 12h-4a2 2 0 0 0 0 4h4v-4Z"/>
+    </svg>
+  );
+}
+
+function IconSpend() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M6 9l6-6 6 6"/>
+      <path d="M12 3v14"/>
+      <path d="M5 21h14"/>
+    </svg>
+  );
+}
+
+function IconBalance() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M9 12h6"/>
+    </svg>
+  );
+}
+
+function formatCurrency(value: number | string) {
+  return Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function sumTotals(rows: Array<{ total: string }>) {
+  return rows.reduce((acc, row) => acc + Number(row.total || 0), 0);
+}
+
+function RankList({
+  rows,
+  emptyMessage,
+  renderName,
+  renderValue,
+  valueOf,
+  keyOf,
+}: {
+  rows: any[];
+  emptyMessage: string;
+  renderName: (row: any) => React.ReactNode;
+  renderValue: (row: any) => React.ReactNode;
+  valueOf: (row: any) => number;
+  keyOf: (row: any) => string;
+}) {
+  if (rows.length === 0) return <p className="rank-empty">{emptyMessage}</p>;
+  const max = Math.max(...rows.map(valueOf), 0.01);
+  return (
+    <div className="rank-list">
+      {rows.map((row, i) => (
+        <div key={keyOf(row)} className="rank-row">
+          <div className="rank-row-top">
+            <span className="rank-badge">{i + 1}</span>
+            <span className="rank-name">{renderName(row)}</span>
+            <strong className="rank-value">{renderValue(row)}</strong>
+          </div>
+          <div className="rank-bar-track">
+            <div className="rank-bar-fill" style={{ width: `${(valueOf(row) / max) * 100}%` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function AdminDashboardPage() {
   const [event, setEvent] = useState<EventSettings | null>(null);
+  const [reconciliation, setReconciliation] = useState<CardReconciliation | null>(null);
+  const [productVendorFilter, setProductVendorFilter] = useState("");
   const [stats, setStats] = useState({
     totalOrders: 0,
     paidOrders: 0,
@@ -52,9 +125,10 @@ export default function AdminDashboardPage() {
 
   const load = () => {
     setError(false);
-    Promise.all([getAdminEvent(), getAdminStats()])
-      .then(([eventData, statsData]) => {
+    Promise.all([getAdminEvent(), getAdminStats(), getCardReconciliation()])
+      .then(([eventData, statsData, reconciliationData]) => {
         setEvent(eventData);
+        setReconciliation(reconciliationData);
         setStats({
           totalOrders: statsData.total_orders,
           paidOrders: statsData.paid_orders,
@@ -69,6 +143,24 @@ export default function AdminDashboardPage() {
 
   useEffect(() => { load(); }, []);
 
+  const totalRecharged = reconciliation ? sumTotals(reconciliation.recharge_by_vendor) : 0;
+  const totalSpent = reconciliation ? sumTotals(reconciliation.sold_by_vendor) : 0;
+
+  const productVendorOptions = (() => {
+    const seen = new Map<string, string>();
+    (reconciliation?.sold_by_product || []).forEach((row) => {
+      const key = row.vendor_id != null ? String(row.vendor_id) : "sem-vendedor";
+      if (!seen.has(key)) seen.set(key, row.vendor_name || "Sem vendedor");
+    });
+    return Array.from(seen, ([id, name]) => ({ id, name }));
+  })();
+
+  const productsForSelectedVendor = (reconciliation?.sold_by_product || []).filter((row) => {
+    if (!productVendorFilter) return true;
+    const key = row.vendor_id != null ? String(row.vendor_id) : "sem-vendedor";
+    return key === productVendorFilter;
+  });
+
   const statCards = [
     {
       label: "Pedidos",
@@ -79,7 +171,7 @@ export default function AdminDashboardPage() {
     },
     {
       label: "Receita",
-      value: stats.revenue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
+      value: formatCurrency(stats.revenue),
       sub: "pagamentos confirmados",
       icon: <IconRevenue />,
       accent: "var(--brand)",
@@ -96,6 +188,27 @@ export default function AdminDashboardPage() {
       value: stats.usedTickets,
       sub: "entradas registradas",
       icon: <IconCheckin />,
+      accent: "#059669",
+    },
+    {
+      label: "Recarregado",
+      value: formatCurrency(totalRecharged),
+      sub: "em cartões, no total",
+      icon: <IconWallet />,
+      accent: "var(--navy)",
+    },
+    {
+      label: "Gasto",
+      value: formatCurrency(totalSpent),
+      sub: "consumido nos cartões",
+      icon: <IconSpend />,
+      accent: "#B45309",
+    },
+    {
+      label: "Saldo restante",
+      value: reconciliation ? formatCurrency(reconciliation.outstanding_balance) : formatCurrency(0),
+      sub: "ainda em cartões ativos/bloqueados",
+      icon: <IconBalance />,
       accent: "#059669",
     },
   ];
@@ -129,6 +242,67 @@ export default function AdminDashboardPage() {
             </article>
           ))}
         </div>
+
+        {reconciliation && (
+          <div className="dashboard-rank-grid">
+            <article className="card">
+              <div className="rank-card-header">
+                <h2>Recarga por caixa</h2>
+              </div>
+              <RankList
+                rows={reconciliation.recharge_by_vendor}
+                emptyMessage="Nenhuma recarga registrada ainda."
+                keyOf={(row) => String(row.vendor_id ?? "sem-caixa")}
+                renderName={(row) => row.vendor__display_name || "Sem caixa"}
+                renderValue={(row) => formatCurrency(row.total)}
+                valueOf={(row) => Number(row.total || 0)}
+              />
+            </article>
+
+            <article className="card">
+              <div className="rank-card-header">
+                <h2>Vendas por vendedor</h2>
+              </div>
+              <RankList
+                rows={reconciliation.sold_by_vendor}
+                emptyMessage="Nenhuma venda registrada ainda."
+                keyOf={(row) => String(row.vendor_id ?? "sem-vendedor")}
+                renderName={(row) => row.vendor__display_name || "Sem vendedor"}
+                renderValue={(row) => formatCurrency(row.total)}
+                valueOf={(row) => Number(row.total || 0)}
+              />
+            </article>
+
+            <article className="card">
+              <div className="rank-card-header">
+                <h2>Vendas por produto</h2>
+                {productVendorOptions.length > 0 && (
+                  <select value={productVendorFilter} onChange={(e) => setProductVendorFilter(e.target.value)}>
+                    <option value="">Todos os vendedores</option>
+                    {productVendorOptions.map((v) => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <RankList
+                rows={productsForSelectedVendor}
+                emptyMessage="Nenhuma venda registrada ainda."
+                keyOf={(row) => `${row.vendor_id ?? "sem-vendedor"}-${row.product_name}`}
+                renderName={(row) => (
+                  <>
+                    {row.product_name}
+                    {!productVendorFilter && (
+                      <span className="rank-name-meta">{row.vendor_name || "Sem vendedor"}</span>
+                    )}
+                  </>
+                )}
+                renderValue={(row) => `${row.quantity}x · ${formatCurrency(row.total)}`}
+                valueOf={(row) => row.quantity}
+              />
+            </article>
+          </div>
+        )}
 
         <div className="admin-grid" style={{ gridTemplateColumns: "1fr" }}>
           <article className="card">

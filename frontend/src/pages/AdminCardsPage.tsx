@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
 import {
   AdminCard,
@@ -31,19 +32,18 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function AdminCardsPage() {
   const [cards, setCards] = useState<AdminCard[]>([]);
-  const [reconciliation, setReconciliation] = useState<CardReconciliation | null>(null);
+  const [statusCounts, setStatusCounts] = useState<CardReconciliation["status_counts"] | null>(null);
   const [search, setSearch] = useState("");
   const [hideReturned, setHideReturned] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busyUid, setBusyUid] = useState<string | null>(null);
-  const [productVendorFilter, setProductVendorFilter] = useState("");
 
   const load = () => {
     setLoading(true);
     Promise.all([getAdminCards(search, 1, 50, hideReturned), getCardReconciliation()])
       .then(([cardsResponse, reconciliationResponse]) => {
         setCards(cardsResponse.results);
-        setReconciliation(reconciliationResponse);
+        setStatusCounts(reconciliationResponse.status_counts);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -65,127 +65,19 @@ export default function AdminCardsPage() {
     }
   };
 
-  const sumTotals = (rows: Array<{ total: string }>) =>
-    rows.reduce((acc, row) => acc + Number(row.total || 0), 0);
-
-  const totalRecharged = reconciliation ? sumTotals(reconciliation.recharge_by_vendor) : 0;
-  const totalSpent = reconciliation ? sumTotals(reconciliation.sold_by_vendor) : 0;
-
-  const productVendorOptions = (() => {
-    const seen = new Map<string, string>();
-    (reconciliation?.sold_by_product || []).forEach((row) => {
-      const key = row.vendor_id != null ? String(row.vendor_id) : "sem-vendedor";
-      if (!seen.has(key)) seen.set(key, row.vendor_name || "Sem vendedor");
-    });
-    return Array.from(seen, ([id, name]) => ({ id, name }));
-  })();
-
-  const productsForSelectedVendor = (reconciliation?.sold_by_product || []).filter((row) => {
-    if (!productVendorFilter) return true;
-    const key = row.vendor_id != null ? String(row.vendor_id) : "sem-vendedor";
-    return key === productVendorFilter;
-  });
-
   return (
     <AdminShell>
       <section className="page admin-page">
         <div className="admin-page-header">
           <p className="admin-kicker">Cartões NFC</p>
           <h1>Cartões</h1>
+          {statusCounts && (
+            <p className="muted">
+              {statusCounts.active || 0} ativos, {statusCounts.blocked || 0} bloqueados, {statusCounts.returned || 0} devolvidos.{" "}
+              Resumo financeiro e vendas ficam no <Link to="/admin">Dashboard</Link>.
+            </p>
+          )}
         </div>
-
-        {reconciliation && (
-          <div className="admin-grid" style={{ marginBottom: "1.5rem" }}>
-            <div className="card">
-              <h2>Resumo financeiro</h2>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <span>Total recarregado</span>
-                  <strong>{formatCurrency(totalRecharged)}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <span>Total gasto</span>
-                  <strong>{formatCurrency(totalSpent)}</strong>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "baseline",
-                    borderTop: "1px solid var(--border)",
-                    paddingTop: "0.5rem",
-                    marginTop: "0.25rem",
-                  }}
-                >
-                  <span>Saldo restante em cartões</span>
-                  <strong style={{ fontSize: "1.3rem" }}>{formatCurrency(reconciliation.outstanding_balance)}</strong>
-                </div>
-              </div>
-              <p style={{ fontSize: "0.85rem", opacity: 0.75, marginTop: "0.75rem" }}>
-                {reconciliation.status_counts.active || 0} ativos, {reconciliation.status_counts.blocked || 0} bloqueados,{" "}
-                {reconciliation.status_counts.returned || 0} devolvidos
-              </p>
-              <p style={{ fontSize: "0.78rem", opacity: 0.65, marginTop: "0.4rem" }}>
-                O saldo restante também inclui o valor pré-carregado de ingressos antecipados, não só recargas feitas no caixa.
-              </p>
-            </div>
-            <div className="card">
-              <h2>Recarga por caixa</h2>
-              {reconciliation.recharge_by_vendor.length === 0 && <p>Nenhuma recarga registrada ainda.</p>}
-              {reconciliation.recharge_by_vendor.map((row) => (
-                <div key={row.vendor_id ?? "sem-caixa"} style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>{row.vendor__display_name || "Sem caixa"}</span>
-                  <strong>{formatCurrency(row.total)}</strong>
-                </div>
-              ))}
-            </div>
-            <div className="card">
-              <h2>Vendas por vendedor</h2>
-              {reconciliation.sold_by_vendor.length === 0 && <p>Nenhuma venda registrada ainda.</p>}
-              {reconciliation.sold_by_vendor.map((row) => (
-                <div key={row.vendor_id ?? "sem-vendedor"} style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>{row.vendor__display_name || "Sem vendedor"}</span>
-                  <strong>{formatCurrency(row.total)}</strong>
-                </div>
-              ))}
-            </div>
-            <div className="card">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", marginBottom: "var(--sp-4)", paddingBottom: "var(--sp-4)", borderBottom: "1px solid var(--border)" }}>
-                <h2 style={{ margin: 0, padding: 0, border: "none" }}>Vendas por produto</h2>
-                {productVendorOptions.length > 0 && (
-                  <select
-                    value={productVendorFilter}
-                    onChange={(e) => setProductVendorFilter(e.target.value)}
-                    style={{ maxWidth: "180px" }}
-                  >
-                    <option value="">Todos os vendedores</option>
-                    {productVendorOptions.map((v) => (
-                      <option key={v.id} value={v.id}>{v.name}</option>
-                    ))}
-                  </select>
-                )}
-              </div>
-              {productsForSelectedVendor.length === 0 && <p>Nenhuma venda registrada ainda.</p>}
-              {productsForSelectedVendor.map((row) => (
-                <div
-                  key={`${row.vendor_id ?? "sem-vendedor"}-${row.product_name}`}
-                  style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem" }}
-                >
-                  <span>
-                    {row.product_name}
-                    {!productVendorFilter && (
-                      <span style={{ opacity: 0.6, fontSize: "0.8rem" }}> — {row.vendor_name || "Sem vendedor"}</span>
-                    )}
-                  </span>
-                  <span style={{ display: "flex", gap: "0.75rem" }}>
-                    <span style={{ opacity: 0.7 }}>{row.quantity}x</span>
-                    <strong>{formatCurrency(row.total)}</strong>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div style={{ display: "flex", alignItems: "center", gap: "1.25rem", marginBottom: "1rem", flexWrap: "wrap" }}>
           <div className="field" style={{ maxWidth: "320px", marginBottom: 0 }}>
