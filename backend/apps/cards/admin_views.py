@@ -1,4 +1,4 @@
-from django.db.models import Q, Sum
+from django.db.models import DecimalField, ExpressionWrapper, F, Q, Sum
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, response
 from rest_framework.authtoken.models import Token
@@ -51,10 +51,29 @@ def admin_card_reconciliation(request):
     status_counts = {
         choice_value: Card.objects.filter(status=choice_value).count() for choice_value, _ in Card.Status.choices
     }
+    # Agrupa por product_name (snapshot), nao pela FK de Product - assim
+    # continua contando itens vendidos mesmo se o produto foi excluido
+    # depois, e o preco usado e o congelado no momento da venda de cada
+    # item, nao o preco atual do produto.
+    sold_by_product = list(
+        CardTransactionItem.objects.values("product_name")
+        # Duas chamadas .annotate() separadas de proposito: anotar "quantity"
+        # e "total" (que usa F("quantity")) na MESMA chamada faz o Django
+        # resolver o F() contra o alias "quantity" ja anotado (um Sum), nao
+        # contra o campo original - e agregado dentro de agregado quebra.
+        .annotate(
+            total=Sum(
+                ExpressionWrapper(F("quantity") * F("unit_price"), output_field=DecimalField(max_digits=12, decimal_places=2))
+            )
+        )
+        .annotate(quantity=Sum("quantity"))
+        .order_by("-quantity")
+    )
     return response.Response(
         {
             "recharge_by_vendor": by_vendor,
             "sold_by_vendor": sold_by_vendor,
+            "sold_by_product": sold_by_product,
             "outstanding_balance": outstanding,
             "status_counts": status_counts,
         }

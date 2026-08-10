@@ -133,6 +133,22 @@ export default function AdminCardsPage() {
                 </div>
               ))}
             </div>
+            <div className="card">
+              <h2>Vendas por produto</h2>
+              {reconciliation.sold_by_product.length === 0 && <p>Nenhuma venda registrada ainda.</p>}
+              {reconciliation.sold_by_product.map((row) => (
+                <div
+                  key={row.product_name}
+                  style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem" }}
+                >
+                  <span>{row.product_name}</span>
+                  <span style={{ display: "flex", gap: "0.75rem" }}>
+                    <span style={{ opacity: 0.7 }}>{row.quantity}x</span>
+                    <strong>{formatCurrency(row.total)}</strong>
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

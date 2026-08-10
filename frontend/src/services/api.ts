@@ -296,6 +296,7 @@ export type AdminCard = {
 export type CardReconciliation = {
   recharge_by_vendor: Array<{ vendor_id: number | null; vendor__display_name: string | null; total: string }>;
   sold_by_vendor: Array<{ vendor_id: number | null; vendor__display_name: string | null; total: string }>;
+  sold_by_product: Array<{ product_name: string; quantity: number; total: string }>;
   outstanding_balance: string;
   status_counts: Record<string, number>;
 };
