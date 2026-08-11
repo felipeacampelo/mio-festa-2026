@@ -1,3 +1,4 @@
+from decimal import Decimal
 from pathlib import Path
 import os
 import sys
@@ -140,6 +141,15 @@ if not ASAAS_BASE_URL:
         raise ImproperlyConfigured("ASAAS_ENV must be 'sandbox' or 'production'.") from exc
 ASAAS_WEBHOOK_TOKEN = os.getenv("ASAAS_WEBHOOK_TOKEN", "")
 ALLOW_MANUAL_PAYMENT_CONFIRMATION = os.getenv("ALLOW_MANUAL_PAYMENT_CONFIRMATION", "false").lower() == "true"
+
+# Taxas padrao (nao promocional) cobradas pelo Asaas por transacao paga,
+# usadas so pra calcular a receita liquida estimada no dashboard - nao tem
+# nenhum efeito sobre valores cobrados do comprador ou repassados ao Asaas.
+# Ajustaveis por env var se o Asaas mudar a tabela de precos ou a conta
+# tiver taxa negociada diferente. https://www.asaas.com/precos-e-taxas
+ASAAS_FEE_PIX = Decimal(os.getenv("ASAAS_FEE_PIX", "1.99"))
+ASAAS_FEE_CREDIT_CARD_PERCENT = Decimal(os.getenv("ASAAS_FEE_CREDIT_CARD_PERCENT", "2.99")) / Decimal("100")
+ASAAS_FEE_CREDIT_CARD_FIXED = Decimal(os.getenv("ASAAS_FEE_CREDIT_CARD_FIXED", "0.49"))
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")

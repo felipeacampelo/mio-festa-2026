@@ -29,6 +29,17 @@ function IconRevenue() {
   );
 }
 
+function IconNetRevenue() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="16" rx="2"/>
+      <path d="M8 9h5"/>
+      <path d="M8 13h8"/>
+      <path d="M8 17h4"/>
+    </svg>
+  );
+}
+
 function IconTickets() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -126,6 +137,7 @@ export default function AdminDashboardPage() {
     totalOrders: 0,
     paidOrders: 0,
     revenue: 0,
+    netRevenue: 0,
     totalTickets: 0,
     activeTickets: 0,
     usedTickets: 0,
@@ -143,6 +155,7 @@ export default function AdminDashboardPage() {
           totalOrders: statsData.total_orders,
           paidOrders: statsData.paid_orders,
           revenue: Number(statsData.revenue || 0),
+          netRevenue: Number(statsData.net_revenue || 0),
           totalTickets: statsData.total_tickets,
           activeTickets: statsData.active_tickets,
           usedTickets: statsData.used_tickets,
@@ -180,6 +193,13 @@ export default function AdminDashboardPage() {
       sub: "pagamentos confirmados",
       icon: <IconRevenue />,
       accent: "var(--brand)",
+    },
+    {
+      label: "Receita líquida",
+      value: formatCurrency(stats.netRevenue),
+      sub: "receita menos taxas do Asaas",
+      icon: <IconNetRevenue />,
+      accent: "#059669",
     },
     {
       label: "Ingressos emitidos",

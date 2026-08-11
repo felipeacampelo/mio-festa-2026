@@ -260,6 +260,56 @@ class CourtesyOrderTests(TestCase):
         self.assertEqual(response.status_code, 401)
 
 
+class AdminStatsNetRevenueTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.admin = User.objects.create_superuser("admin", "admin@example.com", "123456")
+        event = EventSettings.get_solo()
+        event.price = Decimal("25.00")
+        event.sales_end_at = timezone.now() + timedelta(days=2)
+        event.save()
+
+    def make_paid_order(self, payment_method, total_amount):
+        order = Order.objects.create(
+            buyer_name="Fulano",
+            buyer_email=f"fulano{payment_method}@example.com",
+            quantity=1,
+            unit_price=total_amount,
+            total_amount=total_amount,
+            accepted_no_refund=True,
+            payment_method=payment_method,
+        )
+        Ticket.objects.create(order=order, participant_name="Fulano")
+        payment = PaymentService().ensure_payment(order)
+        PaymentService().confirm_payment(payment, {"manual": True})
+        return order
+
+    def test_net_revenue_subtracts_asaas_fees_by_payment_method(self):
+        self.make_paid_order(Order.PaymentMethod.PIX, Decimal("25.00"))
+        self.make_paid_order(Order.PaymentMethod.CREDIT_CARD, Decimal("25.00"))
+        self.client.force_authenticate(self.admin)
+
+        response = self.client.get("/api/admin/stats/")
+        self.assertEqual(response.status_code, 200)
+
+        expected_pix_fee = Decimal("1.99")
+        expected_card_fee = Decimal("25.00") * Decimal("2.99") / Decimal("100") + Decimal("0.49")
+        expected_net = Decimal("50.00") - expected_pix_fee - expected_card_fee
+
+        self.assertEqual(Decimal(str(response.data["revenue"])), Decimal("50.00"))
+        self.assertAlmostEqual(Decimal(str(response.data["net_revenue"])), expected_net, places=2)
+
+    def test_courtesy_orders_do_not_affect_net_revenue(self):
+        from apps.orders.serializers import CourtesyOrderCreateSerializer
+
+        CourtesyOrderCreateSerializer().create({"participant_name": "Cortesia", "participant_email": ""})
+        self.client.force_authenticate(self.admin)
+
+        response = self.client.get("/api/admin/stats/")
+        self.assertEqual(Decimal(str(response.data["revenue"])), Decimal("0.00"))
+        self.assertEqual(Decimal(str(response.data["net_revenue"])), Decimal("0.00"))
+
+
 class PaymentAndCheckinTests(TestCase):
     def setUp(self):
         self.client = APIClient()

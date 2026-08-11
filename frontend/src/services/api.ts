@@ -171,6 +171,7 @@ export async function getAdminStats() {
     total_orders: number;
     paid_orders: number;
     revenue: number;
+    net_revenue: number;
     total_tickets: number;
     active_tickets: number;
     used_tickets: number;

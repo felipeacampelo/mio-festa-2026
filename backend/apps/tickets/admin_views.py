@@ -1,5 +1,7 @@
 import uuid
+from decimal import Decimal
 
+from django.conf import settings
 from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, response, status
@@ -7,9 +9,27 @@ from rest_framework.decorators import api_view, permission_classes
 
 from apps.notifications.services import safe_send_order_paid_emails, safe_send_ticket_reissued_email
 from apps.orders.models import Order
+from apps.payments.models import Payment
 from apps.tickets.models import Ticket, TicketAuditLog
 from apps.tickets.serializers import AdminTicketSerializer, AdminTicketTransferSerializer, AdminTicketUpdateSerializer
 from apps.tickets.services import append_audit, reissue_ticket, undo_check_in
+
+
+def _estimated_asaas_fees(paid_orders_qs) -> Decimal:
+    # Cortesia (total_amount=0, sem Payment) nao passa pelo Asaas, entao
+    # nao entra na conta - o filter(order__in=...) so pega pedidos que tem
+    # um Payment de verdade.
+    total_fees = Decimal("0.00")
+    payments = Payment.objects.filter(order__in=paid_orders_qs).select_related("order")
+    for payment in payments:
+        if payment.method == "pix":
+            total_fees += settings.ASAAS_FEE_PIX
+        elif payment.method == "credit_card":
+            total_fees += (
+                payment.order.total_amount * settings.ASAAS_FEE_CREDIT_CARD_PERCENT
+                + settings.ASAAS_FEE_CREDIT_CARD_FIXED
+            )
+    return total_fees
 
 
 def _ticket_not_editable_response(ticket):
@@ -111,11 +131,14 @@ def admin_stats(request):
     active_tickets = tickets_qs.filter(status=Ticket.Status.ACTIVE).count()
     used_tickets = tickets_qs.filter(status=Ticket.Status.USED).count()
 
+    net_revenue = revenue - _estimated_asaas_fees(paid_orders_qs)
+
     return response.Response(
         {
             "total_orders": total_orders,
             "paid_orders": paid_orders,
             "revenue": revenue,
+            "net_revenue": net_revenue,
             "total_tickets": total_tickets,
             "active_tickets": active_tickets,
             "used_tickets": used_tickets,
