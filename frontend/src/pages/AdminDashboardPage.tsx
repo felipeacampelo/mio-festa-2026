@@ -112,7 +112,7 @@ function RankList({
 export default function AdminDashboardPage() {
   const [event, setEvent] = useState<EventSettings | null>(null);
   const [reconciliation, setReconciliation] = useState<CardReconciliation | null>(null);
-  const [productVendorFilter, setProductVendorFilter] = useState("");
+  const [sellerFilter, setSellerFilter] = useState("");
   const [stats, setStats] = useState({
     totalOrders: 0,
     paidOrders: 0,
@@ -146,20 +146,18 @@ export default function AdminDashboardPage() {
   const totalRecharged = reconciliation ? sumTotals(reconciliation.recharge_by_vendor) : 0;
   const totalSpent = reconciliation ? sumTotals(reconciliation.sold_by_vendor) : 0;
 
-  const productVendorOptions = (() => {
-    const seen = new Map<string, string>();
-    (reconciliation?.sold_by_product || []).forEach((row) => {
-      const key = row.vendor_id != null ? String(row.vendor_id) : "sem-vendedor";
-      if (!seen.has(key)) seen.set(key, row.vendor_name || "Sem vendedor");
-    });
-    return Array.from(seen, ([id, name]) => ({ id, name }));
-  })();
+  const sellerOptions = (reconciliation?.sold_by_vendor || []).map((row) => ({
+    id: String(row.vendor_id ?? "sem-vendedor"),
+    name: row.vendor__display_name || "Sem vendedor",
+  }));
 
-  const productsForSelectedVendor = (reconciliation?.sold_by_product || []).filter((row) => {
-    if (!productVendorFilter) return true;
-    const key = row.vendor_id != null ? String(row.vendor_id) : "sem-vendedor";
-    return key === productVendorFilter;
-  });
+  const selectedSellerTotal = (reconciliation?.sold_by_vendor || []).find(
+    (row) => String(row.vendor_id ?? "sem-vendedor") === sellerFilter
+  );
+
+  const productsForSelectedSeller = (reconciliation?.sold_by_product || []).filter(
+    (row) => String(row.vendor_id ?? "sem-vendedor") === sellerFilter
+  );
 
   const statCards = [
     {
@@ -262,44 +260,43 @@ export default function AdminDashboardPage() {
             <article className="card">
               <div className="rank-card-header">
                 <h2>Vendas por vendedor</h2>
-              </div>
-              <RankList
-                rows={reconciliation.sold_by_vendor}
-                emptyMessage="Nenhuma venda registrada ainda."
-                keyOf={(row) => String(row.vendor_id ?? "sem-vendedor")}
-                renderName={(row) => row.vendor__display_name || "Sem vendedor"}
-                renderValue={(row) => formatCurrency(row.total)}
-                valueOf={(row) => Number(row.total || 0)}
-              />
-            </article>
-
-            <article className="card">
-              <div className="rank-card-header">
-                <h2>Vendas por produto</h2>
-                {productVendorOptions.length > 0 && (
-                  <select value={productVendorFilter} onChange={(e) => setProductVendorFilter(e.target.value)}>
+                {sellerOptions.length > 0 && (
+                  <select value={sellerFilter} onChange={(e) => setSellerFilter(e.target.value)}>
                     <option value="">Todos os vendedores</option>
-                    {productVendorOptions.map((v) => (
+                    {sellerOptions.map((v) => (
                       <option key={v.id} value={v.id}>{v.name}</option>
                     ))}
                   </select>
                 )}
               </div>
-              <RankList
-                rows={productsForSelectedVendor}
-                emptyMessage="Nenhuma venda registrada ainda."
-                keyOf={(row) => `${row.vendor_id ?? "sem-vendedor"}-${row.product_name}`}
-                renderName={(row) => (
-                  <>
-                    {row.product_name}
-                    {!productVendorFilter && (
-                      <span className="rank-name-meta">{row.vendor_name || "Sem vendedor"}</span>
-                    )}
-                  </>
-                )}
-                renderValue={(row) => `${row.quantity}x · ${formatCurrency(row.total)}`}
-                valueOf={(row) => row.quantity}
-              />
+
+              {!sellerFilter && (
+                <RankList
+                  rows={reconciliation.sold_by_vendor}
+                  emptyMessage="Nenhuma venda registrada ainda."
+                  keyOf={(row) => String(row.vendor_id ?? "sem-vendedor")}
+                  renderName={(row) => row.vendor__display_name || "Sem vendedor"}
+                  renderValue={(row) => formatCurrency(row.total)}
+                  valueOf={(row) => Number(row.total || 0)}
+                />
+              )}
+
+              {sellerFilter && (
+                <>
+                  <div className="rank-seller-total">
+                    <span>Total vendido</span>
+                    <strong>{formatCurrency(selectedSellerTotal?.total || 0)}</strong>
+                  </div>
+                  <RankList
+                    rows={productsForSelectedSeller}
+                    emptyMessage="Nenhum produto vendido por este vendedor ainda."
+                    keyOf={(row) => row.product_name}
+                    renderName={(row) => row.product_name}
+                    renderValue={(row) => `${row.quantity}x · ${formatCurrency(row.total)}`}
+                    valueOf={(row) => row.quantity}
+                  />
+                </>
+              )}
             </article>
           </div>
         )}

@@ -2573,10 +2573,23 @@ textarea:focus {
 ────────────────────────────────────────────────────── */
 .dashboard-rank-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: var(--sp-5);
   margin-top: var(--sp-6);
 }
+
+.rank-seller-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  background: rgba(45, 40, 86, 0.05);
+  border-radius: var(--r-md);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+
+.rank-seller-total span { color: var(--text-muted); font-size: 0.85rem; }
+.rank-seller-total strong { font-size: 1.2rem; color: var(--navy-dark); }
 
 .rank-card-header {
   display: flex;
