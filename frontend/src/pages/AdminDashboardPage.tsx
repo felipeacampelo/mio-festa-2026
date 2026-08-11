@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import AdminShell from "../components/AdminShell";
-import { CardReconciliation, EventSettings, getAdminEvent, getAdminStats, getCardReconciliation } from "../services/api";
+import {
+  CardReconciliation,
+  EventSettings,
+  SellerOption,
+  getAdminEvent,
+  getAdminSellers,
+  getAdminStats,
+  getCardReconciliation,
+} from "../services/api";
 
 function IconOrders() {
   return (
@@ -112,6 +120,7 @@ function RankList({
 export default function AdminDashboardPage() {
   const [event, setEvent] = useState<EventSettings | null>(null);
   const [reconciliation, setReconciliation] = useState<CardReconciliation | null>(null);
+  const [sellers, setSellers] = useState<SellerOption[]>([]);
   const [sellerFilter, setSellerFilter] = useState("");
   const [stats, setStats] = useState({
     totalOrders: 0,
@@ -125,10 +134,11 @@ export default function AdminDashboardPage() {
 
   const load = () => {
     setError(false);
-    Promise.all([getAdminEvent(), getAdminStats(), getCardReconciliation()])
-      .then(([eventData, statsData, reconciliationData]) => {
+    Promise.all([getAdminEvent(), getAdminStats(), getCardReconciliation(), getAdminSellers()])
+      .then(([eventData, statsData, reconciliationData, sellersData]) => {
         setEvent(eventData);
         setReconciliation(reconciliationData);
+        setSellers(sellersData);
         setStats({
           totalOrders: statsData.total_orders,
           paidOrders: statsData.paid_orders,
@@ -146,10 +156,7 @@ export default function AdminDashboardPage() {
   const totalRecharged = reconciliation ? sumTotals(reconciliation.recharge_by_vendor) : 0;
   const totalSpent = reconciliation ? sumTotals(reconciliation.sold_by_vendor) : 0;
 
-  const sellerOptions = (reconciliation?.sold_by_vendor || []).map((row) => ({
-    id: String(row.vendor_id ?? "sem-vendedor"),
-    name: row.vendor__display_name || "Sem vendedor",
-  }));
+  const sellerOptions = sellers.map((s) => ({ id: String(s.id), name: s.display_name }));
 
   const selectedSellerTotal = (reconciliation?.sold_by_vendor || []).find(
     (row) => String(row.vendor_id ?? "sem-vendedor") === sellerFilter
@@ -232,11 +239,13 @@ export default function AdminDashboardPage() {
               <div className="dashboard-card-icon" style={{ color: card.accent }}>
                 {card.icon}
               </div>
-              <p className="dashboard-label">{card.label}</p>
-              <strong className="dashboard-metric" style={{ color: card.accent }}>
-                {card.value}
-              </strong>
-              <span className="dashboard-sub">{card.sub}</span>
+              <div className="dashboard-card-text">
+                <p className="dashboard-label">{card.label}</p>
+                <strong className="dashboard-metric" style={{ color: card.accent }}>
+                  {card.value}
+                </strong>
+                <span className="dashboard-sub">{card.sub}</span>
+              </div>
             </article>
           ))}
         </div>

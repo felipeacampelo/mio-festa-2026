@@ -3133,4 +3133,47 @@ textarea:focus {
   .dashboard-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .rank-card-header {
+    flex-wrap: wrap;
+  }
+
+  .rank-card-header select {
+    max-width: none;
+    flex: 1 1 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-content-inner {
+    padding: var(--sp-4);
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-card {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--sp-3);
+  }
+
+  .dashboard-card-icon {
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
+
+  .dashboard-card-text {
+    min-width: 0;
+  }
+
+  .dashboard-metric {
+    font-size: 1.5rem;
+    margin: 2px 0;
+  }
+
+  .rank-bar-track {
+    margin-left: 0;
+  }
 }
